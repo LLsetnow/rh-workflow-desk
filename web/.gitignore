@@ -1,3 +1,0 @@
-# The local app keeps credentials, task history, cached inputs and outputs here.
-data/
-node_modules/

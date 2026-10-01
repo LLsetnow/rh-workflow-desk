@@ -1,385 +1,691 @@
-# RH CLI
+# RH Workflow Desk
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![RunningHub](https://img.shields.io/badge/Powered%20by-RunningHub-ff6a00.svg)](https://www.runninghub.cn)
+`rh-workflow-desk` 是纯本地 RunningHub 工作流桌面应用，提供 Electron 和浏览器入口。仓库根目录承载应用，原 RH CLI 作为 [cli/](cli/README.md) 子功能保留；后端继续复用它的 RunningHub 客户端。
 
-> 面向 [RunningHub](https://www.runninghub.cn) 的现代命令行工具，在终端里直接完成 **配置 → 选模型 → 提交任务 → 轮询 → 下载 → 脚本化输出** 的全流程。
+源码按职责分层：`backend/` 保存 Python 服务与业务模块，`static/` 是唯一的浏览器静态资源目录，`electron/` 保存桌面主进程，`scripts/` 保存启动和打包脚本。仓库根目录是应用入口，Python CLI 位于 `cli/`。
 
-文生图、图生图、文生视频、图生视频，以及社区里的各种 AI 应用，一条命令就能跑完并把结果文件落到本地。所有命令都支持 `--json`，可以无缝接进脚本、CI 或其它程序。
+- `data/keys.json`：本地 API Key（权限 600）
+- `data/accounts.json`：本地托管账号的名称、站点和签到状态（权限 600，不保存密码或 token）
+- `data/tasks.sqlite3`：任务历史、状态、taskId、阶段日志和脱敏后的 `error_detail`
+- `data/tasks.sqlite3` 中的 `usage_records`：独立用量台账，供仪表盘统计；删除任务不会删除该记录
+- `data/workflow/<workflow_id>/workflow_api.json`：工作流包中的 API 工作流文件
+- `data/workflow/<workflow_id>/prompt_group.json`：工作流包内部的提示词组文件，不作为工作流页面中的独立资源
+- `data/workflow/<workflow_id>/manifest.json`：工作流注册文件，保存顶层配置并索引同目录下的工作流文件和提示词组文件
+- `data/workflow-registry.json`：工作流库的内部目录索引；只有登记到这里的完整工作流包会显示在“工作流”页面
+- `data/input/<来源>/`：本地输入文件统一目录；来源包括 `downloaded`、`pasted`、`prompt`、`telegram` 和 `transcoded`
+- `data/outputs/`：默认输出目录下的任务产物；普通工作流任务的 `<task_id>/` 保存 `workflow_api.json`、`prompt_group.json` 和路径清单 `manifest.json`，Codex/深度/骨骼/角色语音工具箱任务保存包含本地 workflowId、统一 `feature` 类型、提示词、画幅参数和输入路径的 `manifest.json`。输入文件不复制到任务目录，只保存原始路径
+- `VideoMake/ref/Resources.json`：ref 资源目录和各 JSON 索引的机器可读入口；其中 `sources.prompt` 指向提示词基础积木文件，`sources.tts` 指向 GPT-SoVITS 角色目录。`data/prompt/state.json` 保存当前临时组装顺序；独立提示词组文件只作为历史或兼容数据保留，新的工作流包以自身携带的提示词组为准。基础积木路径由该索引解析，内容放在 JSON 的 `blocks` 数组中，每项包含 `id`、`category`、`tags`、`title` 和 `text`
+- `VideoMake/ref/pose/pose.json`：动作库 JSON 源文件。动作原图、深度图和骨骼图仍从 ref 原目录读取，不会复制到本项目
+- `VideoMake/ref/Resources.json`：ref 资源目录和各 JSON 索引的机器可读入口清单
+- `docs/translation.md`：提示词工坊自由文本的阿里云翻译配置和英文导出规则
+- `docs/telegram.md`：任务完成后的 Telegram Bot 成片推送配置和投递规则
 
-```bash
-rh image -p "雨夜霓虹下的赛博朋克街道，电影质感"
-# OUTPUT_FILE:/Users/you/rh-output/result.png
-# 花费：¥0.5    耗时：14s
-```
+### 从零创建资源库
 
----
+打开“设置 → 扩展功能”，在“媒体库 ref 文件夹”中填写一个新的文件夹路径，点击“新建资源库”。应用会在空目录中创建 `Resources.json`、提示词、动作、人物、音频、背景、服装和 TTS 的目录与空索引，并立即将它设为当前资源库；已有内容的目录不会被覆盖。之后可以在提示词工坊中逐项添加资源。TTS 模型文件仍需要用户自行放入 `sources.tts` 指向的目录，每个人物目录必须包含 GPT 模型、SoVITS 模型和 `reference/` 下的参考音频与 `参考文本.txt`。
 
-## ✨ 特性
+仪表盘入口为 `/dashboard`，支持 `1D`、`7D`、`30D` 时间范围，并可在“消耗概况”中按账号筛选或查看全部账号；日消耗、提交次数和处理时长来自 SQLite 中独立的 `usage_records`，已识别的视频产物还会用于计算并发场景下的单位视频响应效率，不会因为删除历史任务而消失。仪表盘的“高分工作流”只统计工作流库中已登记的工作流，并复用成片库当前可见产物的评分，按已评分星级总和列出当前范围前 5 名。余额按账号去重，每个账号只取最近一次成功查询的一个 API Key，避免同一账号的多个 Key 重复累加。
 
-- **标准模型 API**：78+ 端点，覆盖 image / video / audio / 3d / text，支持按 `--task` 自动选最优端点。
-- **精选快捷菜单**：`rh image` 内置 5 个图片模型、`rh video` 内置 8 个视频模型，记不住端点 ID 也能用。
-- **AI 应用编排**：`rh app run` 自动拉取可改节点、上传本地文件、提交、轮询、下载全部结果。
-- **智能输入处理**：本地图片小于 5MB 自动转 data URI，大文件或视频自动上传，URL 直接透传。
-- **稳健轮询**：失败自动重试，连续失败熔断，识别余额不足/任务失败并给出可读错误。
-- **脚本友好**：全局 `--json` 输出稳定结构；密钥永不出现在日志或错误信息里。
-- **零配置默认值**：结果默认写入 `~/rh-output`，多文件自动追加 `_1`、`_2`。
+## 启动
 
----
-
-## 📦 安装
-
-需要 Python ≥ 3.10。
+先在仓库根目录安装依赖：
 
 ```bash
-# 普通安装
-python -m pip install .
-
-# 开发模式（含测试依赖）
-python -m pip install -e ".[test]"
+uv sync
+npm ci
 ```
 
-安装后会注册 `rh` 命令；也可以用 `python -m rh_cli` 调用。
-
----
-
-## 🖥️ macOS 桌面版
-
-本项目同时提供 RH Workflow Desk macOS 桌面安装包，适用于 Apple Silicon（arm64）Mac。它把本地工作流提交台、提示词积木和文件预览整合在一个窗口中；应用数据保存在 macOS 的用户数据目录，不会写入安装包。
-
-- [下载最新 macOS 安装包](https://github.com/LLsetnow/RH_CLI/releases/latest)
-- [直接下载 RH Workflow Desk 0.3.0（Apple Silicon `.dmg`）](https://github.com/LLsetnow/RH_CLI/releases/download/v0.3.0/RH-Workflow-Desk-0.3.0-arm64.dmg)
-- [查看 SHA-256 校验值](https://github.com/LLsetnow/RH_CLI/releases/download/v0.3.0/SHA256SUMS.txt)
-
-当前发布包未使用 Apple Developer ID 签名。首次打开时如果 macOS 提示无法验证开发者，请在 Finder 中右键应用选择“打开”，或到“系统设置 → 隐私与安全性”允许打开。需要从源码开发或重新打包时，见 [`web/README.md`](web/README.md)。
-
----
-
-## 🚀 快速开始
+macOS Electron 开发版：
 
 ```bash
-# 1. 设置 API Key（在 https://www.runninghub.cn 获取）
-rh auth set-key YOUR_RUNNINGHUB_API_KEY
-
-# 2. 检查连通性和余额
-rh check
-
-# 3. 生成第一张图
-rh image -p "一只戴着宇航头盔的柴犬，3D 渲染"
+npm start
 ```
 
-`rh check` 正常时输出：
+浏览器 Web 版：
+
+```bash
+./scripts/start.sh
+```
+
+默认地址为 `http://127.0.0.1:8766`。也可以不自动打开浏览器：
+
+```bash
+./scripts/start.sh --no-browser
+```
+
+Electron 版本会自动启动本地 Python 服务，并让拖入文件同时获得本机绝对路径和图片预览。关闭窗口时会停止本地服务。
+
+### 仓库结构与 CLI
 
 ```text
-RunningHub 已就绪，余额 ¥929906.265，Key 来源：config
+rh-workflow-desk/
+├── backend/       本地 Python 服务与业务模块
+├── static/        浏览器静态资源
+├── electron/      桌面主进程与 preload
+├── scripts/       启动与打包脚本
+├── docs/          应用开发文档
+├── tests/         应用测试
+├── tools/         深度图、骨骼图等本地辅助工具
+├── data/          本地数据（不提交 Git）
+└── cli/           RH CLI、测试、示例工作流和鸭鸭图解码器
 ```
 
----
+命令行子功能可从仓库根目录运行 `uv run rh --help`；独立安装使用 `uv tool install ./cli --editable --with socksio`。完整命令说明见 [CLI 文档](cli/README.md)。
 
-## ⚙️ 配置
+旧源码布局的 `web/data/` 已移动为 `data/`。现有本地 checkout 保留了忽略于 Git 的 `web/data` 符号链接，让历史记录中的旧绝对路径继续可读；新 checkout 直接使用 `data/`。已有 checkout 更新代码后，若根目录尚无 `data/`，应用会继续读取旧的 `web/data/`，保留已有历史与配置。安装包仍使用操作系统的用户数据目录。
 
-### API Key 解析顺序
+### 正式安装包
 
-按以下顺序查找，命中即用：
+macOS Apple Silicon（arm64）用户可以从 [GitHub Releases](https://github.com/LLsetnow/rh-workflow-desk/releases/latest) 下载 `.dmg` 安装包；Windows x64 用户下载 `.exe` 安装程序。发布页同时提供对应的 `SHA256SUMS.txt`。当前安装包未使用 Apple Developer ID 或 Windows 代码签名，首次运行时如果系统提示风险，请确认来源后允许运行。
 
-| 优先级 | 来源 | 说明 |
-|:---:|------|------|
-| 1 | `--api-key` | 单次命令临时指定，最高优先级 |
-| 2 | `RUNNINGHUB_API_KEY` | 环境变量，适合 CI |
-| 3 | 配置文件 | `~/.config/rh/config.toml`（Windows：`%APPDATA%\rh\config.toml`） |
-| 4 | 兼容读取 | `~/.openclaw/openclaw.json` 里的 RunningHub 配置（如有） |
-
-### 输出目录
-
-默认写入 `~/rh-output`，可全局或单次覆盖：
+从源码重新构建 Apple Silicon 安装包：
 
 ```bash
-rh auth set-output-dir ./output          # 持久化默认目录
-rh --output-dir ./out image -p "a cat"   # 单次覆盖
+npm install
+npm run package:mac
 ```
 
-也可用环境变量 `RH_OUTPUT_DIR` 指定。
+构建会先用 PyInstaller 打包内置 Python 本地服务，再生成带当前版本号的 `dist/RH-Workflow-Desk-0.3.2-arm64.dmg`、对应 `.zip` 和校验文件；安装后的任务数据写入 macOS 用户数据目录。
 
-### 全局选项
+Windows x64 安装包在 GitHub Actions 的 Windows runner 上构建，以确保内置 Python 服务是真正的 Windows `.exe`：
 
-| 选项 | 作用 |
-|------|------|
-| `--api-key TEXT` | 临时指定 API Key |
-| `--output-dir PATH` | 临时指定输出目录 |
-| `--json` | 输出机器可读 JSON |
-| `-v, --verbose` | 打印更多调试信息 |
-| `--version` | 显示版本 |
+```powershell
+npm install
+npm run package:win
+```
 
----
+构建会生成 `dist/RH-Workflow-Desk-0.3.2-x64.exe` 和 `SHA256SUMS.txt`；安装后的任务数据写入 Windows 用户数据目录。
 
-## 🧠 命令速查
+## 新用户首次安装与配置
 
-| 命令 | 作用 |
-|------|------|
-| `rh check` | 校验 Key、查看余额 |
-| `rh auth set-key / show / set-output-dir` | 管理 Key 与默认输出目录 |
-| `rh model list / info / run` | 标准模型：列表 / 详情 / 运行 |
-| `rh image` | 快捷文生图 / 图生图（5 个精选模型） |
-| `rh video` | 快捷文生视频 / 图生视频（8 个精选模型） |
-| `rh app list / info / run` | AI 应用：浏览 / 查看节点 / 运行 |
-| `rh workflow run` | 提交原始 ComfyUI API 工作流并下载结果 |
+推荐按下面的顺序配置。只想提交普通 RunningHub 工作流时，完成前四步即可；翻译、视觉分析、TTS、深度图、骨骼图和 Telegram 都是按需启用的扩展能力。
 
----
+### 1. 先确认本机依赖
 
-## 🖼️ 标准模型
+| 项目 | 是否必需 | 用途 |
+| --- | --- | --- |
+| macOS Apple Silicon 或 Windows x64 | 必需 | 当前发布安装包的目标平台 |
+| Python 3.10+ | 仅源码运行必需 | 启动 `backend` 本地服务；安装包已内置 |
+| 网络访问 | 提交任务必需 | 访问 RunningHub 以及已启用的阿里云、Telegram 服务 |
+| `ffmpeg` / `ffprobe` | 处理视频时必需 | 视频转码、读取时长和尺寸、下载后检查媒体 |
+| `yt-dlp` | 使用社交平台下载或 Telegram 视频入站时必需 | 下载 Bilibili、抖音、X/Twitter 等视频 |
+
+源码运行需要在仓库根目录执行 `uv sync`；Electron 开发版还需要执行 `npm ci`。如果网络环境使用代理，请在启动本地服务的进程中配置标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。
+
+### 2. 启动并确认本地服务
+
+源码运行：
 
 ```bash
-# 浏览端点
-rh model list --type image
-rh model list --task image-to-video
-
-# 查看某个端点的参数定义
-rh model info rhart-image-n-pro/text-to-image
-
-# 按端点运行（文生图）
-rh model run -e rhart-image-n-pro/text-to-image -p "a cute dog" -o ./dog.png
-
-# 按任务自动选最优端点
-rh model run --task text-to-image -p "a cute dog"
-
-# 图生图（带输入图）
-rh model run -e rhart-image-n-pro/edit -p "把背景换成海滩" -i ./photo.png
+./scripts/start.sh --no-browser
 ```
 
-`--param key=value` 可重复，用来传模型私有参数；类型会按端点定义自动转换（INT/FLOAT/BOOLEAN）：
+然后打开 `http://127.0.0.1:8766`。安装包用户直接启动 RH Workflow Desk 即可；Electron 会自动启动同一个本地 Python 服务。
 
-```bash
-rh model run -e rhart-video/sparkvideo-2.0/text-to-video \
-  -p "A cinematic city flythrough" \
-  --param duration=10 \
-  --param generateAudio=true
-```
+第一次配置前先确认页面能正常打开，再进入“设置”。不要同时运行多个源码服务或多个安装包实例，否则可能同时写入同一份 SQLite 任务库。
 
-> 提示：先用 `rh model info <endpoint>` 查看该端点支持哪些参数及可选值，再用 `--param` 传入。
+### 3. 配置 RunningHub API Key
 
----
+打开“设置 → 平台配置”，添加 RunningHub API Key。API Key 在 RunningHub 的[企业 API / Consumer API 页面](https://www.runninghub.ai/enterprise-api/consumerApi)创建或复制：
 
-## ⚡ 快捷图片与视频
+1. 填写名称，选择站点（`runninghub.cn` 或 `runninghub.ai`）。
+2. 粘贴 API Key，点击“检测并保存”。
+3. 等待余额和账号类型检测成功；检测失败时先检查站点、Key 有效期和网络。
+4. 如有多个 Key，再设置“个人 API Key 并发数”和“API Key 调度策略”。个人 Key 并发范围是 1—3；共享/企业 Key 不受这个个人上限限制。
 
-不想记端点 ID 时，直接用快捷命令。不带 `--model` 会进入交互式菜单；带 `--model`（编号或名称别名均可）则跳过菜单。
+普通 API 提交只需要 API Key，不要求在 RunningHub 网页中保持登录。账号登录属于可选能力，主要用于网页账号相关操作和签到。API Key 会脱敏显示，敏感配置只保存在本机，不要提交到 Git、截图或日志。
 
-### 图片模型菜单（`rh image`）
+### 4. 导入并验证第一个工作流
 
-| # | 模型 | 特点 |
-|:---:|------|------|
-| 1 | 全能图片PRO | 香蕉 Pro 同款，默认推荐，综合效果最好 |
-| 2 | 全能图片V2 | 香蕉 2 同款，最快最便宜 |
-| 3 | 悠船 v7 | Midjourney 风格，欧美大片质感 |
-| 4 | GPT Image 2 | 语义理解强，改图也很稳 |
-| 5 | Seedream v5 | 字节出品，写实照片感超强 |
+在“任务提交”中导入 ComfyUI **API 格式** JSON，然后填写远程 RunningHub `workflowId`。`workflowId` 可以直接从 RunningHub 工作流网页路径获取，例如：[工作流 2086389208601014273](https://www.runninghub.ai/zh-cn/workflow/2086389208601014273?source=workspace) 中，`/workflow/` 后面的数字就是 `workflowId`；`?source=workspace` 等查询参数不属于 ID。本地页面的工作流 ID（例如 `wf_...`）不能代替远程 `workflowId`。
 
-```bash
-rh image -p "赛博朋克城市"                                   # 交互选模型，默认 1
-rh image --model 2 -p "a product photo of headphones" -o ./headphones.png
-rh image --model "GPT Image 2" -p "remove the person" -i ./input.png
-```
+提交前检查：
 
-### 视频模型菜单（`rh video`）
+- JSON 是 API 格式，而不是普通 UI 工作流格式；
+- 远端已安装工作流需要的模型和自定义节点；
+- 图片、音频、视频等本地输入路径可读；
+- 必要时在任务页配置尺寸、随机种子、提示词和节点覆盖值；
+- 先用单个小任务验证提交、轮询、下载和产物保存，再开启批量队列。
 
-| # | 模型 | 特点 |
-|:---:|------|------|
-| 1 | 全能视频V3.1 Fast | 又快又好，性价比之王（推荐） |
-| 2 | 全能视频X | Grok 驱动，想象力超强 |
-| 3 | 可灵 v3.0 Pro | 运动自然，拍人物首选 |
-| 4 | 全能视频V3.1 Pro | 电影感拉满，适合风景大片 |
-| 5 | Vidu Q3 Pro | 风格化独特，适合创意短片 |
-| 6 | 全能视频S | Sora 同款引擎 |
-| 7 | 海螺 Hailuo | 速度快、画面细腻 |
-| 8 | Seedance 2.0 | 最长 15 秒 + 自动配音，最高 4K |
+如需长期复用，导入后点击“保存到工作流库”。工作流库会保存 API JSON、提示词组和运行配置；临时快照、工作流库条目和任务快照的区别见下文“工作流快照与工作流库”。
 
-```bash
-rh video -p "猫在阳光花园里奔跑"
-rh video --model 3 -p "a dancer in neon street" --duration 5
-rh video --model "Seedance" -p "a realistic travel vlog" --param resolution=1080p
-```
+### 5. 从零创建并绑定资源库
 
----
+如果要使用提示词工坊、人物/动作/背景/音频/服装卡片或角色 TTS，打开“设置 → 扩展功能”：
 
-## 🧩 AI 应用
+1. 在“媒体库 ref 文件夹”填写一个新的文件夹路径，或使用“选择文件夹”。
+2. 点击“新建资源库”。目标目录必须为空，初始化不会覆盖已有内容。
+3. 初始化完成后，应用会创建 `Resources.json`、各类空索引和媒体目录，并立即切换到这个资源库。
+4. 再通过提示词工坊添加资源，或把已有资源按索引约定迁入对应目录。
 
-运行社区里的 AI 应用（webapp）。先列出 / 查看节点，再带参数运行。
+资源库的入口始终是 `Resources.json`。它通过 `sources` 索引 `prompt`、`pose`、`character`、`audio`、`background`、`clothes` 和 `tts`；因此迁移资源时应修改索引或目录结构，不要在代码中写死外部项目的绝对路径。普通 RunningHub 工作流提交不依赖资源库，但提示词和媒体卡片功能依赖它。
 
-```bash
-# 浏览应用（RECOMMEND / HOTTEST / NEWEST）
-rh app list --sort HOTTEST --size 5
+### 6. 配置角色 TTS（可选）
 
-# 查看某个应用的可修改节点（支持 webappId 或完整 URL）
-rh app info https://www.runninghub.cn/ai-detail/1877265245566922800
-
-# 运行：用 --node 改文本/参数节点，用 --file 上传本地文件到指定节点
-rh app run 1877265245566922800 \
-  --node "52:prompt=a girl dancing" \
-  --file "39:image=./photo.jpg" \
-  -o ./result.png
-```
-
-参数格式：
-
-- `--node "nodeId:fieldName=value"` —— 设置某个节点的字段值，可重复。
-- `--file "nodeId:fieldName=/path/to/file"` —— 上传本地文件并把返回的文件名写入该节点，可重复。
-- `--instance-type plus` —— 使用更高规格实例（默认 `default`）。
-
-`rh app run` 会自动：拉取节点信息 → 应用你的修改 → 上传文件 → 提交任务 → 轮询直到完成 → 下载所有结果文件。
-
-> 用 `rh app info <id>` 先看清楚每个节点的 `Node ID` 和 `Field`，再决定 `--node` / `--file` 怎么填。
-
----
-
-## 🧩 原始 ComfyUI 工作流
-
-本 fork 支持直接提交 ComfyUI **API 格式**工作流 JSON。`--input` 兼容单图片快捷注入；需要音频、视频或多个参考文件时，用可重复的 `--file` 按节点上传并注入：
-
-```bash
-rh workflow run ./workflow_api.json \
-  --file "37:image=./reference.png" \
-  --file "52:audio=./source.wav" \
-  -o ./output/
-```
-
-参数格式：
-
-- `--workflow-id WORKFLOW_ID` —— 可选；完整 workflow JSON 可以不依赖已发布的 workflowId，仍可用它兼容已有的 ID 映射和模板环境。
-- `--file "nodeId:fieldName=/path/to/file"` —— 上传本地文件，并把返回的 RunningHub 文件名写入对应节点字段，可重复。
-- `--input /path/to/image` —— 保留的快捷方式，自动注入第一个 `LoadImage` 节点；多图片工作流请使用多个 `--file`。
-- `--set "nodeId:fieldName=value"` —— 覆盖普通节点参数，可与 `--file` 混用。
-- `--access-password`、`--webhook-url`、`--retain-seconds`、`--personal-queue`、`--no-add-metadata` —— 对应 RunningHub 工作流接口的可选请求参数。
-
-工作流必须是 ComfyUI API 格式导出，节点 ID 和字段名应以当前 JSON 为准，不要凭示例猜测。RunningHub 仍必须具备该工作流需要的模型和自定义节点。
-
----
-
-## 🤖 JSON 模式（脚本 / CI）
-
-所有主要命令都支持全局 `--json`：
-
-```bash
-rh --json check
-rh --json model list --task text-to-image
-rh --json app list --sort NEWEST
-```
-
-`rh --json check` 输出：
-
-```json
-{
-  "status": "ready",
-  "key_prefix": "14cf****",
-  "key_source": "env",
-  "balance": "929906.265",
-  "currency": "CNY",
-  "coins": "882663",
-  "running_tasks": "0",
-  "api_type": "SHARED"
-}
-```
-
-生成类命令（`model run` / `image` / `video` / `app run`）在 JSON 模式下输出统一结构：
-
-```json
-{
-  "files": ["/Users/you/rh-output/result.png"],
-  "texts": [],
-  "cost": "0.5",
-  "duration": 42,
-  "task_id": "1899999999999999999"
-}
-```
-
-### 在 Shell 里取结果
-
-```bash
-# 生成图片并拿到本地路径
-path=$(rh --json image --model 1 -p "a cat" | jq -r '.files[0]')
-echo "生成完成：$path"
-```
-
----
-
-## 📁 输出与文件命名
-
-- 默认目录：Unix `~/rh-output`，Windows `%USERPROFILE%\rh-output`。
-- `-o ./name.png` 指定具体文件名；`-o ./dir/` 指定目录（用默认文件名）。
-- 单任务返回多个文件时，自动追加 `_1`、`_2` …
-- 下载的视频会自动做一次 MP4 兼容性头部修补，提升各播放器兼容性。
-
----
-
-## 🚦 错误处理
-
-出错时以非零状态码退出，并打印结构化错误：
-
-```json
-{
-  "error": "INSUFFICIENT_BALANCE",
-  "message": "账户余额不足：...",
-  "detail": { "recharge_url": "https://www.runninghub.cn/vip-rights/4" }
-}
-```
-
-常见错误码：
-
-| 错误码 | 含义 | 处理建议 |
-|------|------|------|
-| `NO_API_KEY` | 未配置 Key | `rh auth set-key` 或设 `RUNNINGHUB_API_KEY` |
-| `AUTH_FAILED` | Key 无效 | 检查 Key 是否正确/被禁用 |
-| `INSUFFICIENT_BALANCE` | 余额不足 | 前往充值后重试 |
-| `ENDPOINT_NOT_FOUND` | 端点不存在 | 用 `rh model list` 核对端点 ID |
-| `INVALID_PARAM` / `INVALID_NODE_ARG` | 参数格式错误 | 检查 `key=value` / `nodeId:field=value` 格式 |
-| `TASK_FAILED` / `TASK_TIMEOUT` | 任务失败/超时 | 查看 detail，调整输入后重试 |
-| `UPLOAD_FAILED` / `DOWNLOAD_FAILED` | 上传/下载失败 | 检查文件路径与网络 |
-
----
-
-## ❓ FAQ
-
-**Q：终端里中文 JSON 显示成乱码？**
-A：数据本身是正确的 UTF-8（重定向到文件可验证）。Windows 终端如显示乱码，先执行 `chcp 65001` 切到 UTF-8 代码页。
-
-**Q：我的 API Key 会被记录吗？**
-A：不会。Key 不会拼进可见 URL，错误信息和日志里的 Key/Token 也会被自动脱敏。
-
-**Q：怎么知道某个模型支持哪些参数？**
-A：`rh model info <endpoint>` 查看参数定义，再用 `--param key=value` 传入。
-
----
-
-## 🛠️ 开发
-
-```bash
-python -m pip install -e ".[test]"
-pytest
-```
-
-项目结构：
+TTS 不再由 `tts.py` 写死某个项目路径，而是从当前资源库的 `Resources.json` 中读取 `sources.tts`。每个角色目录至少需要：
 
 ```text
-src/rh_cli/
-├── main.py            # Typer 根命令
-├── config.py          # API Key 解析、配置读写
-├── http.py            # HTTP 客户端 + 密钥脱敏
-├── poll.py            # 任务轮询（重试/熔断）
-├── media.py           # 图片/文件上传、data URI
-├── output.py          # 结果结构与文件命名
-├── model/             # 标准模型：commands / client / payload / menus
-├── app/               # AI 应用：commands / client / nodes
-└── catalog/           # 端点目录 capabilities.json + 加载器
+<资源库>/tts/<角色名>/
+├── 一个 GPT-SoVITS *.ckpt
+├── 一个 SoVITS *.pth
+└── reference/
+    ├── 一个 *.wav
+    └── 参考文本.txt
 ```
 
----
+资源文件应由用户单独准备，空资源库初始化器不会复制模型。GPT-SoVITS 服务默认监听 `http://127.0.0.1:9889`；如果服务地址不同，在启动前设置 `RH_TTS_API_URL`。配置好后，打开 TTS 页面确认角色列表能被读取，再进行合成测试。
 
-## 📄 许可证
+### 7. 配置本地媒体运行时（按需）
 
-本项目基于 [Apache-2.0](LICENSE) 许可证开源。
+深度图和骨骼图工具使用 RH Workflow Desk 自己的运行时，不依赖 VideoMake 项目的 `.runtime`：
 
-## 🔗 链接
+```text
+<rh-workflow-desk>/.runtime/depth_anything_v2_small_f16/
+<rh-workflow-desk>/.runtime/pose_dwpose/
+```
 
-- [RunningHub 官网](https://www.runninghub.cn)
-- [获取 API Key](https://www.runninghub.cn/enterprise-api/sharedApi)
-- [充值 / 套餐](https://www.runninghub.cn/vip-rights/4)
-- [English README](README_en.md)
+对应的模型和虚拟环境必须完整存在，辅助脚本位于 `tools/`。如需把运行时放到其他位置，可设置 `RH_RUNTIME_ROOT` 指向运行时根目录；工具脚本仍从 RH Workflow Desk 项目内读取。没有使用深度图或骨骼图时可以不安装这两套运行时。
+
+### 8. 配置可选的云服务和 Telegram
+
+- **阿里云翻译**：翻译服务使用阿里云 AccessKey ID 和 AccessKey Secret，不是百炼 API Key。请参考[如何获取 AccessKey](https://help.aliyun.com/zh/document_detail/436880.html)，建议使用 RAM 用户的 AccessKey；然后在“设置 → 阿里云翻译”填写，或在启动前设置 `ALIBABA_CLOUD_ACCESS_KEY_ID`、`ALIBABA_CLOUD_ACCESS_KEY_SECRET`。详细规则见 [翻译配置](docs/translation.md)。
+- **阿里云视觉分析**：在[阿里云百炼控制台](https://bailian.console.aliyun.com/cn-beijing/)创建或复制 API Key，在“设置 → 阿里云视觉”填写，或设置 `DASHSCOPE_API_KEY`（兼容 `ALIYUN_VISION_API_KEY`）；用于图片卡片的视觉分析，默认使用 `qwen-vl-max`。创建步骤见阿里云官方的[获取与配置 API Key](https://help.aliyun.com/zh/model-studio/get-api-key)。若按量付费、Token Plan 或其他套餐创建了不同前缀的 Key，请按阿里云文档匹配对应服务和地域。
+- **Telegram 成片推送/入站**：在“设置 → Telegram”填写 Bot Token、推送 Chat ID 和入站 Chat ID；也可设置 `RH_TELEGRAM_BOT_TOKEN`、`RH_TELEGRAM_PUSH_CHAT_ID`、`RH_TELEGRAM_INBOUND_CHAT_ID`、`RH_TELEGRAM_ENABLED=1`。详细的工作流条件、下载、重试和 Cookie 规则见 [Telegram 配置](docs/telegram.md)。
+
+这些服务都不是普通本地提交的前置条件。只启用实际需要的服务，并为每个服务单独验证一次连接。
+
+### 9. 首次验收清单
+
+完成配置后，建议按以下顺序做一次小验收：
+
+1. 页面能打开，设置保存后刷新仍存在。
+2. RunningHub API Key 检测成功并能读取余额。
+3. 一个最小 API 工作流能成功提交、轮询并下载产物。
+4. 输入文件进入 `data/input/<来源>/`，产物进入设置的输出目录。
+5. 若使用资源库，`Resources.json` 和各索引可读取；若使用 TTS，角色列表能显示。
+6. 若使用 Telegram、翻译或视觉分析，分别执行一次测试，不要把“配置已保存”当作“远程服务可用”。
+
+### 配置文件和数据位置
+
+源码模式默认把运行数据放在 `data/`；安装包模式把数据放在操作系统用户数据目录。主要内容如下：
+
+- `keys.json`：RunningHub API Key、云服务 Key 和 Telegram 配置；只保存在本机。
+- `accounts.json`：账号名称、站点和签到状态，不保存密码或 token。
+- `tasks.sqlite3`：任务历史、队列状态、阶段日志和用量台账。
+- `input/<来源>/`：统一输入缓存，按 `downloaded`、`pasted`、`prompt`、`telegram`、`transcoded` 等来源二次分类。
+- `outputs/`：默认任务产物、工作流快照、提示词组快照和 `manifest.json`。
+
+迁移到新电脑时，应分别迁移 API/云服务配置、资源库、TTS 模型、`.runtime` 和需要保留的任务/产物；不要把密钥、Cookie 或完整用户数据目录直接提交到仓库。
+
+## 工作流快照与工作流库
+
+工作流页面把“正在使用的工作流”和“长期保存的工作流”分开处理。大多数时候，你编辑的是临时工作流快照；只有明确点击“保存到工作流库”，它才会成为长期可复用的工作流。
+
+### 1. 从外部导入工作流快照
+
+把 API 格式的 JSON 导入任务提交页或工作流页面后，应用会创建一份临时工作流快照。你可以修改节点、输入路径、提示词、账号、RunningHub `workflowId` 和输入默认值。此时不会修改原始 JSON，也不会自动出现在工作流库中。
+
+### 2. 将快照保存到工作流库
+
+点击“保存到工作流库”后，应用会把当前快照保存成一个完整的工作流包，包括工作流配置、API 工作流和关联的提示词组。提示词组属于工作流包内部，不需要单独管理；工作流页面也不会把它显示成独立的“组状态库”。
+
+### 3. 从工作流库加载工作流
+
+从工作流库点击“加载”时，应用会复制一份新的临时工作流快照。之后的编辑只作用于这份快照，库里的原工作流不会被直接修改。
+
+### 更新已经保存的工作流
+
+更新库内工作流时，应用不会原地覆盖旧版本。正确流程是：
+
+```text
+加载旧工作流 A
+    ↓
+编辑临时快照
+    ↓
+将快照保存为新的工作流 B
+    ↓
+迁移 Telegram、文件夹等活动引用
+    ↓
+删除旧工作流 A
+```
+
+只有 B 保存成功、三个组成文件都能读取、活动引用迁移成功后，才会删除 A。任务历史不会跟着迁移或删除；任务提交时已经保存了自己的工作流、提示词组和执行参数快照。
+
+### 三种状态的区别
+
+| 名称 | 是否可以编辑 | 是否显示在工作流库 | 生命周期 |
+| --- | --- | --- | --- |
+| 临时工作流快照 | 可以 | 否 | 从外部导入或从工作流库加载后产生 |
+| 工作流库条目 | 通过新快照替换 | 是 | 用户明确保存，或主动删除 |
+| 任务快照 | 否 | 否 | 提交任务时创建，任务历史保留 |
+
+```mermaid
+flowchart LR
+    A["外部 API JSON"] --> B["临时工作流快照"]
+    L["工作流库条目"] -->|复制加载| B
+    B -->|保存到工作流库| L2["新的工作流库条目"]
+    B -->|提交任务| T["不可变任务快照"]
+    L2 -->|加载| B
+```
+
+## 使用路线与产品理念
+
+RH Workflow Desk 不是单纯的“上传文件并调用接口”工具，而是一个本地优先的 AI 工作流生产台：用工作流定义能力，用提示词和媒体库定义内容，用本地队列保证执行，用成片反馈推动迭代。
+
+### 推荐主路线
+
+对于需要长期复用的工作，推荐把当前临时快照保存成一个可恢复的工作流包：
+
+```text
+工作流 API JSON
++ 输入配置
++ Prompt Group
++ 账号 / RunningHub workflowId
+= 可复用工作流包
+```
+
+```mermaid
+flowchart LR
+    A["外部 API JSON"] --> B["临时工作流快照"]
+    L["工作流库"] -->|复制加载| B
+    B --> C["绑定账号、workflowId、输入配置和提示词"]
+    C --> D["任务提交"]
+    D --> E["配置本次输入"]
+    E --> F["加入本地队列"]
+    F --> G["RunningHub 执行"]
+    G --> H["成片库"]
+    H --> I["评分 / 对比 / 归档"]
+    B -->|保存到工作流库| L
+    H -->|加载任务快照继续迭代| B
+```
+
+如果已经有现成的 API JSON，也可以直接走最短路线：
+
+```mermaid
+flowchart LR
+    A["任务提交"] --> B["导入 API 工作流"]
+    B --> C["填写 RunningHub workflowId"]
+    C --> D["配置文件、提示词、尺寸和随机参数"]
+    D --> E["加入本地队列"]
+    E --> F["自动调度并远程执行"]
+    F --> G["保存产物"]
+    G --> H["成片库"]
+```
+
+### 三、完整产品闭环
+
+完整产品闭环不是一次性的“提交并等待结果”，而是从运行环境准备、内容编排、工作流执行，到成片评估和下一轮复用的连续过程。每个阶段都会产生下一阶段需要的数据，最终把一次生成沉淀为可重复使用的工作流资产。
+
+| 阶段 | 使用者主要动作 | 形成的数据或结果 |
+| --- | --- | --- |
+| 1. 一次性配置 | 设置账号、API Key、媒体库、产物目录和并发策略 | 本地运行环境与调度规则 |
+| 2. 选择生产入口 | 选择已有工作流、导入 API JSON、进入提示词工坊或使用 Telegram | 本次任务的工作流来源 |
+| 3. 组织内容 | 组合提示词积木、真实媒体卡片、自由文本和输入文件 | Prompt Group、输入配置和任务草稿 |
+| 4. 提交执行 | 配置尺寸、RandomNoise、旁路节点并加入队列 | 本地任务记录、排队状态和远程任务 |
+| 5. 保存结果 | 远程执行完成后轮询、下载并保存产物 | 成片文件、工作流快照、提示词组快照和 manifest |
+| 6. 回看评估 | 在成片库预览、归类、评分、对比、导出或推送 | 成片反馈、项目归类和用量数据 |
+| 7. 复用迭代 | 加载旧任务或工作流，修改输入后再次提交 | 更稳定的工作流包和下一轮生产 |
+
+其中，工作流决定“如何执行”，Prompt Group 和媒体库决定“生成什么”，任务队列决定“如何可靠执行”，成片库和仪表盘决定“哪些结果值得继续复用”。
+
+```mermaid
+flowchart TD
+    A["一次性配置"] --> A1["账号与 API Key"]
+    A --> A2["媒体库 ref 路径"]
+    A --> A3["默认产物目录"]
+    A --> A4["并发与调度策略"]
+
+    A1 --> B["选择生产入口"]
+    A2 --> B
+    A3 --> B
+    A4 --> B
+
+    B --> C{"进入哪条路线？"}
+    C -->|已有工作流| D["任务提交"]
+    C -->|长期复用| E["工作流库"]
+    C -->|先设计内容| F["提示词工坊"]
+    C -->|自动触发| G["Telegram 入站"]
+
+    E --> D
+    F --> F1["固定积木 + 媒体库卡片 + 少量自由文本"]
+    F1 --> D
+    G --> D
+
+    D --> H["配置本次输入"]
+    H --> I["加入本地队列"]
+    I --> J["自动选择账号与 API Key"]
+    J --> K["远程提交、轮询并下载"]
+
+    K --> L{"任务结果"}
+    L -->|成功| M["保存产物与任务快照"]
+    L -->|失败或中断| N["保存阶段日志与错误详情"]
+
+    M --> O["成片库"]
+    O --> O1["预览 / 归类 / 评分"]
+    O --> O2["内容对比 / 导出 / 推送"]
+    O1 --> P["仪表盘反馈"]
+    O2 --> P
+    P --> Q{"继续迭代？"}
+    Q -->|是| R["加载任务或工作流"]
+    R --> H
+    Q -->|否| S["形成稳定工作流包"]
+```
+
+### 使用分支
+
+| 分支 | 入口 | 适合场景 |
+| --- | --- | --- |
+| 快速提交 | 任务提交 → 导入 JSON | 临时测试、一次性生成 |
+| 工作流复用 | 工作流库 → 加载 | 固定模板、长期生产 |
+| 提示词优先 | 提示词工坊 → 导入任务 | 先设计 H3 内容，再选择工作流执行 |
+| 资源库创作 | 提示词工坊 → 人物 / 动作 / 背景 / 音频 / 服装 | 使用真实媒体资产组合提示词 |
+| 成片迭代 | 成片 → 加载任务 → 修改 → 再提交 | 对比多个版本、持续优化 |
+| 批量队列 | 连续提交多个任务 | 利用本地队列和并发能力 |
+| Telegram 图片入站 | Telegram 图片 → 固定或随机工作流 | 手机端触发批量生成 |
+| Telegram 视频入站 | Telegram 链接 → 下载 → 工作流 | 处理抖音、Bilibili 或 X 视频 |
+| 成片推送 | 任务完成 → Telegram | 自动发送生成结果 |
+| 专注模式 | Focus 模式 | 将多个页面组合成连续工作台 |
+| 数据分析 | 仪表盘 | 查看消耗、效率和高分工作流 |
+
+专注模式是多个页面的组合交互方式，仪表盘是生产结果的统计反馈，设置则是运行前置条件；它们不是独立于主生产链路之外的另一套任务系统。
+
+### 产品理念
+
+```mermaid
+flowchart TD
+    ROOT(("RH Workflow Desk"))
+
+    ROOT --> A["工作流中心"]
+    A --> A1["API JSON 是执行合同"]
+    A --> A2["工作流是可复用模板"]
+    A --> A3["Prompt Group 与工作流绑定"]
+
+    ROOT --> B["资源库优先"]
+    B --> B1["人物 / 动作 / 背景 / 音频 / 服装"]
+    B --> B2["固定积木优先"]
+    B --> B3["自由文本只补充缺口"]
+
+    ROOT --> C["本地优先"]
+    C --> C1["浏览器或 Electron + 本地 Python"]
+    C --> C2["账号、Key、任务历史保存在本机"]
+    C --> C3["输入文件通常只保存路径，不复制源文件"]
+
+    ROOT --> D["可靠执行"]
+    D --> D1["本地 FIFO 队列"]
+    D --> D2["自动并发与 API Key 调度"]
+    D --> D3["任务快照与重启恢复"]
+
+    ROOT --> E["结果闭环"]
+    E --> E1["成片预览"]
+    E --> E2["评分与内容对比"]
+    E --> E3["仪表盘反馈"]
+    E --> E4["加载旧任务继续迭代"]
+
+    ROOT --> F["自动化扩展"]
+    F --> F1["Telegram 图片入站"]
+    F --> F2["Telegram 视频链接入站"]
+    F --> F3["完成后自动推送"]
+```
+
+H3 场景下，推荐遵循下面的内容组装顺序：
+
+```text
+用户需求
+→ 真实媒体卡片
+→ 固定提示词积木
+→ 少量自由文本
+→ Prompt Group
+→ API 工作流
+→ 可复现任务
+→ 成片反馈
+```
+
+也就是说，提示词工坊的目标不是单独产出一段文本，而是将真实的人物、动作、背景、音频和结构化提示词，组合成能够与工作流输入顺序保持一致的内容资产。自由文本只用于补充媒体库和固定积木尚未覆盖的时间变化、镜头衔接或用户专属要求。
+
+## 按页面划分的数据流
+
+下面的图以使用者看到的页面为主线，同时标出本地数据、远程执行和页面之间的恢复关系。产品的核心数据对象有五类：临时工作流快照、工作流库条目、媒体资源、任务记录和成片文件；提示词组是工作流快照和工作流包的内部组成部分。
+
+### 页面总览
+
+```mermaid
+flowchart LR
+    S["设置"] --> W["工作流"]
+    S --> P["提示词工坊"]
+    W --> T["任务提交"]
+    P --> T
+    T --> Q["本地队列"]
+    Q --> R["RunningHub"]
+    R --> O["成片"]
+    O --> T
+    O --> D["仪表盘"]
+    W --> G["Telegram 入站配置"]
+    G --> Q
+    F["专注模式"] -.组合.-> W
+    F -.组合.-> P
+    F -.组合.-> T
+    F -.组合.-> O
+    F -.组合.-> D
+    F -.组合.-> S
+```
+
+### 1. 设置页面：建立运行环境
+
+设置页面主要产生配置数据，不直接生成任务。保存后的配置会被任务提交页、提示词工坊和本地调度器共同消费。
+
+```mermaid
+flowchart LR
+    U["用户"] --> S["设置页面"]
+    S --> K["API Key 检测与余额"]
+    K --> KJ["本地 keys.json"]
+    S --> A["账号登录与签到"]
+    A --> AJ["本地 accounts.json"]
+    S --> R["媒体库 ref 路径"]
+    R --> RJ["Resources.json 与各资源 JSON"]
+    S --> O["产物目录、并发、调度策略"]
+    O --> SJ["本地设置"]
+    S --> X["翻译、视觉识图、Telegram、下载配置"]
+    X --> SJ
+
+    KJ --> T["任务提交页"]
+    AJ --> T
+    RJ --> P["提示词工坊"]
+    SJ --> T
+    SJ --> Q["本地任务调度器"]
+```
+
+### 2. 工作流页面：把 API JSON 变成可复用模板
+
+工作流页面负责管理工作流库和临时工作流快照。外部导入或从工作流库加载得到的临时快照不会自动成为工作流库记录。
+
+```mermaid
+flowchart LR
+    F["API 格式 JSON 文件"] --> W["工作流页面"]
+    W --> A["创建临时工作流快照"]
+    A --> B["编辑名称、账号、输入配置和提示词"]
+    B --> C["保存到工作流库"]
+    C --> L["创建完整工作流包"]
+    L --> WJ["data/workflow/<workflow_id>/workflow_api.json"]
+    L --> PG["data/workflow/<workflow_id>/prompt_group.json"]
+    L --> RJ["manifest.json 与 workflow-registry.json"]
+
+    W --> E["选择工作流卡片"]
+    E --> D["任务提交草稿"]
+    E --> P["提示词工坊恢复缓存"]
+    D --> T["任务提交页"]
+    P --> PW["提示词工坊"]
+```
+
+### 3. 提示词工坊：从资源到 Prompt Group
+
+提示词工坊的输入优先来自真实资源库。当前组装台属于临时工作流快照；保存工作流时，提示词组会随工作流包一起保存，不需要单独管理。
+
+```mermaid
+flowchart LR
+    R["Resources.json"] --> L["基础积木、动作、人物、音频、背景、服装"]
+    L --> P["提示词工坊"]
+    U["用户自由文本"] --> P
+    P --> S["提示词组装台"]
+    S --> ST["prompt/state.json"]
+    S --> G["随工作流快照保存"]
+    G --> GI["工作流包内的 prompt_group.json"]
+    S --> E["翻译与英文导出"]
+    E --> T["导入任务"]
+    T --> D["任务提交草稿 / 待导入状态"]
+    L --> M["选择媒体或动作导入"]
+    M --> D
+    D --> W["任务提交页"]
+```
+
+在 H3 场景中，推荐的数据顺序是：
+
+```text
+用户需求 → 真实媒体卡片 → 固定提示词积木 → 少量自由文本 → Prompt Group
+```
+
+### 4. 任务提交页面：从草稿到远程任务
+
+任务提交页面是执行中心。输入文件通常只保存本机绝对路径，真正上传发生在任务被本地调度器执行时。
+
+```mermaid
+flowchart TD
+    W["工作流库或导入 JSON"] --> T["任务提交页面"]
+    P["提示词工坊或任务快照"] --> T
+    F["本机图片 / 视频 / 音频"] --> T
+    T --> A["分析并配置输入节点"]
+    A --> B["文件、提示词、尺寸、RandomNoise、旁路"]
+    B --> C["POST /api/tasks"]
+    C --> D["SQLite 任务记录"]
+    C --> E["本地 FIFO 队列"]
+    E --> F1["账号与 API Key 自动调度"]
+    F1 --> R["RunningHub 提交"]
+    R --> P1["远程轮询"]
+    P1 --> Q{"结果"}
+    Q -->|完成| O["下载并保存本地产物"]
+    Q -->|失败 / 取消 / 中断| X["阶段日志与错误详情"]
+    O --> S["workflow_api.json"]
+    O --> S2["prompt_group.json"]
+    O --> S3["manifest.json"]
+    O --> U["usage_records"]
+    O --> OUT["成片页面"]
+    X --> OUT
+```
+
+### 5. 成片页面：从文件回看，到再次生产
+
+成片页面既是结果浏览器，也是迭代入口。评分、项目归类和对比不会修改原始工作流文件。
+
+```mermaid
+flowchart LR
+    DB["SQLite 任务历史"] --> O["成片页面"]
+    FS["本地产物目录"] --> O
+    O --> V["预览、搜索、项目归类"]
+    O --> R["评分"]
+    R --> D["仪表盘高分工作流"]
+    O --> C["内容对比"]
+    O --> I["导入产物到任务节点"]
+    O --> L["加载任务 / 工作流"]
+    L --> T["任务提交草稿"]
+    I --> T
+    O --> E["导出案例或发送 Telegram"]
+    O --> X["清理一星产物"]
+    X -.保留.-> DB
+```
+
+### 6. 仪表盘页面：消费数据而不是生产数据
+
+仪表盘主要是只读分析层，不参与工作流提交。它把任务用量、账号余额、产物评分和视频处理效率汇总成决策信息。
+
+```mermaid
+flowchart LR
+    U["usage_records"] --> D["仪表盘"]
+    T["任务历史"] --> D
+    K["API Key 余额"] --> D
+    O["成片评分与注册工作流"] --> D
+    D --> M1["消耗与提交次数"]
+    D --> M2["处理时长与视频响应效率"]
+    D --> M3["余额与账号筛选"]
+    D --> M4["高分工作流排行"]
+    M4 --> W["指导下一轮工作流选择"]
+```
+
+### 7. Telegram 自动化：绕过页面入口，但复用同一任务系统
+
+Telegram 是自动化入口，不是另一套执行后端。图片入站和视频链接入站最终都会进入相同的本地队列、任务历史、成片库和仪表盘。
+
+```mermaid
+flowchart TD
+    TG["Telegram 图片或视频链接"] --> BOT["本地 Bot Long Polling"]
+    BOT --> C{"入站配置"}
+    C -->|图片固定| W1["指定入站工作流"]
+    C -->|图片随机| W2["工作流文件夹随机选择"]
+    C -->|视频链接| DL["本机下载与时长读取"]
+    DL --> W3["指定视频工作流"]
+    W1 --> Q["现有本地任务队列"]
+    W2 --> Q
+    W3 --> Q
+    Q --> R["RunningHub 执行"]
+    R --> O["本地产物与任务快照"]
+    O --> LIB["成片库 / 仪表盘"]
+    O --> PUSH["Telegram 成片推送"]
+```
+
+### 8. 专注模式：改变页面组织，不改变数据归属
+
+专注模式把工作流、提示词工坊、任务提交、成片、仪表盘和设置组合到一个连续画布中。工具箱已经并入任务提交页的子导航，不会产生独立的“专注模式数据仓库”。
+
+```mermaid
+flowchart LR
+    F["专注模式"] --> W["工作流面板"]
+    F --> P["提示词面板"]
+    F --> T["任务提交面板"]
+    F --> O["成片面板"]
+    F --> D["仪表盘面板"]
+    F --> S["设置面板"]
+    W -.共享草稿与事件.-> P
+    P -.共享草稿与事件.-> T
+    T -.任务状态.-> O
+    O -.评分与反馈.-> D
+    T -.本地媒体任务.-> O
+    S -.配置.-> T
+    S -.配置.-> P
+```
+
+## 说明
+
+- 工作流必须是 ComfyUI API 格式：顶层为节点字典，每个节点包含 `inputs` 和 `class_type`。
+- 文件输入会识别常见的 `LoadImage`、`LoadAudio`、`LoadVideo`、`VHS_LoadVideo` 等节点。
+- 提示词会识别 `CLIPTextEncode`、`TextEncode*`、`Prompt` 等节点中的文本字段。
+- 文件输入支持拖入文件、在输入卡片中按 `⌘V` / `Ctrl+V` 粘贴图片，或点击“预览”进行图片/视频预览；视频节点会使用本机流式预览并支持播放、暂停和进度拖动。剪贴板图片会保存到 `data/input/pasted/` 并以本机绝对路径提交。浏览器不会把拖入文件的原始路径交给网页，因此普通文件要提交任务请点击路径框旁的“选择文件”，由 macOS 原生文件选择器返回真实绝对路径，也可以手动填写本机绝对路径。普通拖入文件不会复制到项目目录，真正的远程上传只在执行任务时发生。
+- 每个文件、提示词和 RandomNoise 输入卡都支持“旁路”：开启后，本次提交会从 API 工作流中移除该节点，并删除直接指向其输出的下游连线；当前输入不会上传或覆盖。当前填写内容会保留在页面和任务记录中，关闭旁路后可以继续使用。
+- 拖动文件悬停在整个输入卡片上方时，卡片会显示绿色发光反馈；工作流输入区域顶部会列出文件和提示词节点标签，点击标签可快速定位到对应卡片。
+- 任务队列中的“加载”可以把该任务保存的 API 工作流、文件路径、提示词、workflowId、RandomNoise 配置和提交时的提示词组状态恢复到左侧面板；进入提示词工坊时会同步恢复该组装台内容，加载不会复制输入文件。
+- 任务队列会先在本地按每个 API Key 的并发上限调度；个人 API Key 的第 4 个任务会保持在本地等待队列，当前任务释放槽位后自动提交。点击任务名称打开详情，“加载”用于恢复到左侧面板。
+- 每次提交都会在任务产物目录的 `<task_id>/workflow_api.json` 保存本次 API 工作流快照，同时保存 `prompt_group.json` 和 `manifest.json`；manifest 记录本次提交的工作流、提示词组、执行参数以及输入文件原始路径，不复制输入文件。普通提交保存当前组装台或 API 请求显式提供的提示词组，Telegram 入站提交保存所选工作流包关联的提示词组。加载任务时优先读取任务自己的快照，旧任务在原始工作流和提示词组仍存在时会自动补写复现路径清单。
+- 输入区域支持添加 `RandomNoise` 节点，默认写入 `noise_seed` 和 `mode` 两个参数，模式可选 `fixed` 或 `randomize`；导出或提交时会保留该节点。
+- 任务提交栏按“提交机型 → 项目选择 → 提交次数”横向排列。“项目选择”会列出本地已有项目；选择具体项目会直接归类到该项目，选择“未归类”会停用路径推断；“自动归类”会依次检查产物输出目录和工作流路径，找到 `projects/<项目名>` 时使用该目录作为项目，否则保持未归类。
+- 提交栏的“提交次数”默认是 1，只有存在未旁路且模式为“随机”的 `RandomNoise` 节点时才生效，最多可将同一任务连续加入队列 20 次；每次提交前在本机生成新的随机种子，将种子写入该次 `workflow_api.json` 快照和 `random_noise` 参数后再加入队列；固定模式始终只提交 1 次。
+- 工作流页面支持 `Ctrl + Enter` 快捷提交；任务完成后，任务队列和详情会显示本次消耗的 RH 币或金额。
+- 设置中的默认产物目录支持点击“选择文件夹”通过 macOS/Electron 原生选择器填入绝对路径，仍需点击“保存路径”确认。
+- 导入的工作流如果已经保存了本机绝对图片路径，应用会直接读取该路径生成内存预览；任务详情中的“阶段日志”和“错误详情”会持久化到本地数据库，API Key、token、密码等敏感字段会脱敏。
+- 顶部“工作流”页面只显示用户明确保存到工作流库的完整工作流包，并按账号分组；外部导入、从工作流库加载和历史任务产生的临时工作流快照不会自动进入工作流库。保存工作流时，当前快照中的提示词组会作为同一工作流包中的 `*.prompt_group.json` 文件一起保存；从工作流库加载时会复制一份快照，并同时准备任务提交页和提示词工坊的工作台。更新库内工作流应保存为新的库条目，迁移活动引用后再删除旧条目；删除工作流不会删除任务历史和产物。
+- 导入工作流后需要填写 RunningHub 工作流页面对应的 `workflowId`，它不同于本地保存用的 `wf_...` ID；提交时会单独传给 RunningHub，任务历史也会保留该 ID。
+- “导出当前 API”会把当前文件/提示词配置和已旁路后的节点图一起写入 JSON；非空的 `__rh_meta__.workflowId` 会一并保留。重新导入该文件时会自动回填；真正提交前会剥离这段本地元数据，不会发送给 RunningHub。
+- 提示词页面的“积木库”可以切换“基础积木”、动作、人物、音频、背景和服装。媒体库统一以 `VideoMake/ref` 为根目录，读取 `pose/pose.json`、`character/character.json`、`audio/audio.json`、`background/background.json` 和 `clothes/clothes.json`；设置页只需配置一次 ref 文件夹。动作/参考卡片支持媒体预览、文本预览和标签编辑，保存后会回写对应 JSON。
+- 提示词工坊的“自由文本”卡片可通过阿里云翻译为英文；原文修改后需要重新翻译。复制、导出 TXT 和导入任务始终只使用英文翻译结果，存在未翻译的非空自由文本时会阻止这三个操作。阿里云翻译可在任务提交页“设置”中配置，或使用 `ALIBABA_CLOUD_ACCESS_KEY_ID` / `ALIBABA_CLOUD_ACCESS_KEY_SECRET` 环境变量。
+- 任务完成并保存本地产物后，可在任务提交页“设置”中启用 Telegram 成片推送；图片、视频、音频和其它文件分别使用对应的 Telegram Bot API 接口发送。推送与入站共用 Bot Token，但分别使用推送 Chat ID 和入站 Chat ID；入站 Chat ID 为 `*` 时允许任意聊天。推送失败不会影响任务状态，发送结果会写入任务阶段日志；Bot Token 只保存在本机 `data/keys.json`，也支持 `RH_TELEGRAM_BOT_TOKEN`、`RH_TELEGRAM_PUSH_CHAT_ID`、`RH_TELEGRAM_INBOUND_CHAT_ID` 和 `RH_TELEGRAM_ENABLED` 环境变量。
+- 基础积木路径从 `VideoMake/ref/Resources.json` 的 `sources.prompt` 解析。JSON 顶层使用 `blocks` 数组，每项包含 `id`、`category`、`tags`、`title` 和 `text`；内容按 MiniMax H3 的模式对齐、参考定义、镜头动作、摄影机、声音、对白和音乐字段拆分，拖入工作台后按顺序拼接。修改、新建和删除都会直接回写该 JSON 文件。
+- 动作库中的“导入媒体”会读取当前任务提交页草稿里的 `LoadImage` 节点；动作卡片导入对应深度图，人物/背景/服装等参考卡片导入原图。选择目标节点后，文件的本机路径会写回该节点并保存到本机草稿，之后打开任务提交页会自动恢复。没有任务草稿时，需要先在任务提交页导入工作流。
+- 动作素材必须使用同一个 basename 配对：原图放在 `VideoMake/ref/pose/color/<name>.<ext>`，深度图统一直接放在 `VideoMake/ref/pose/depth/<name>_depth.png`，骨骼图统一直接放在 `VideoMake/ref/pose/skeleton/<name>_skeleton.png`，不再使用深度图分类子目录；`pose.json` 的同一个动作对象中维护 `color_image_path`、`depth_image_path` 和可选的 `skeleton_image_path`。动作库会检查原图/深度图配对，并额外暴露骨骼图是否可用。
+- “任务提交”页通过子导航提供四个功能区：普通 RunningHub 工作流提交、Codex 图像生成、深度与骨骼处理、角色语音。Codex 图像生成支持 0 到多张参考图，并可选择 1K/2K/4K 分辨率和画幅比例，默认 1K、9:16；命令细节完全由应用在后台处理，用户只需填写生成要求。每次运行自动生成 `task_<id>`，输出写入设置中的产物目录，并记录稳定的本地 workflowId 与 manifest。深度、骨骼和深度+骨骼支持图片单张处理及视频逐帧处理，可选择原始、480p、720p 或 1080p，并可指定只处理视频前 N 秒；空白表示整段视频，超过输入实际时长时自动按实际时长处理。选择目标分辨率时会保持画幅比例，先生成短边对应的工作副本，再按处理时长截取、抽帧和推理。同样记录输入路径、模式、分辨率和处理时长并进入任务历史和成片库。角色语音从当前资源库 `Resources.json` 的 `sources.tts` 目录自动发现完整的 GPT-SoVITS V4 人物资产，选择人物并输入文本后生成 WAV，也进入统一任务队列和成片库。工具箱任务均可从任务队列或成片库恢复参数再次运行，旧地址 `/toolbox` 会自动跳转到 Codex 功能区。
+- 工作流输入、提示词工坊媒体、任务提交节点视频和成片库视频都支持右键菜单“截取当前帧”；截取位置取当前播放时间，保存后可继续作为图片输入使用。
+- 动作编辑器支持用本机 DWPose 自动生成骨骼图；它输出接近你参考图的 OpenPose 风格黑底、彩色肢体线、面部/手部关键点图，保持原图尺寸。运行环境位于 RH Workflow Desk 根目录的 `.runtime/pose_dwpose/`，模型文件为 `checkpoints/dw-ll_ucoco_384.onnx` 和 `checkpoints/yolox_l.onnx`，生成脚本为 RH Workflow Desk 根目录的 `tools/pose_skeleton_macos.py`。
+- 骨骼图生成面向常规真人姿态参考；动漫、严重遮挡、极近裁切或非人体主体可能识别不完整，识别失败时不会写入空图。
+- 扩展动作时直接新增素材和 `pose.json` 中的动作对象：新增原图、生成同名 `_depth.png` 和 `_skeleton.png`，在 JSON 中填写分类、名称、提示词及三条相对路径；重新进入动作库或点击“重新扫描”即可更新。应用直接读取 JSON，不再生成或依赖 `data/prompt/actions.json` 缓存。
+- 设置中的“个人 API Key 并发数”可配置为 1–3，默认 3，只影响普通个人 API Key；`apiType` 包含 `wallet`、`shared` 或 `enterprise` 时，本地调度器固定按 100 个并发槽处理。
+- 设置中的“API Key 调度策略”支持“仅使用个人”“优先个人，满载时使用共享/企业”和“仅使用共享/企业”三种模式；任务提交页不再选择 API Key，所有提交统一按该策略自动调度。优先模式下个人 Key 有空闲槽位就优先使用，个人槽位满后才把新任务放入共享/企业 Key；个人槽位释放后，后续等待任务会及时切回个人。
+- 设置中的“账号管理”支持分别添加 `runninghub.cn` 和 `runninghub.ai` 账号。首次添加会打开对应站点的 Electron 登录窗口；每个账号使用独立的持久化本地浏览器会话，关闭并重新启动 Electron 后仍可继续使用。点击“签到”会刷新会话并读取 RunningHub 网站返回的 `loginCoinTriggered` / `loginDailyCoin` 状态；如果网站要求重新认证，需要在账号窗口重新登录。网站未返回奖励时，界面会如实显示“未返回奖励”，不会把 100 RH 币当成已签到。
+- 应用重启后，任务会先检查 `<输出目录>/<task_id>/`：如果已经存在产物，就重建本地产物记录并恢复为“已完成”；如果没有产物但保留了远程 `taskId`，则自动恢复轮询并继续下载；只有没有远程 `taskId` 的任务才会保留为“已中断”。
+- 成片库中每个产物卡片的工作流名称可以直接点击；应用会读取该任务保存的 API 快照和输入配置，写入本地任务提交草稿，但不会自动跳转页面。
+- 成片库提供“功能”筛选标签，可在任务提交、Codex 图像生成、深度与骨骼、角色语音四个子功能之间快速切换；功能标签来自任务类型，不依赖用户手动维护，并会同步作用于导出和批量清理。
+- 成片库右上角的“删除一星成片”和“导出所有案例”只作用于当前打开的项目文件夹，按钮数量也按该文件夹计算；“未归类”只处理未归类成片，返回“全部成片”后才使用全库范围。删除只移除标记为 1 星的产物文件和产物记录，保留任务记录及其他星级产物，执行前会二次确认；导出只打包带“案例”标签的媒体文件。

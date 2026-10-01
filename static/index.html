@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/png" href="/static/assets/rh-workflow-desk-icon.png" />
+    <title>RH Workflow Desk</title>
+    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/workflows.css" />
+    <link rel="stylesheet" href="/static/toolbox.css" />
+    <script>
+      (function () {
+        try {
+          var storedTheme = localStorage.getItem("rh-workflow-theme");
+          document.documentElement.dataset.theme = storedTheme === "dark" ? "dark" : "light";
+        } catch (error) {}
+      }());
+    </script>
+    <script src="/static/motion.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand-lockup brand-home-link" href="/?workspace=submit" aria-label="返回 RH Workflow Desk">
+          <img class="brand-mark" src="/static/assets/rh-workflow-desk-icon.png" alt="" aria-hidden="true" />
+          <span>
+            <span class="brand-name">RH Workflow Desk</span>
+            <span class="brand-subtitle">本地工作流提交台</span>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <div class="local-badge"><span class="status-dot"></span>仅本机运行</div>
+          <button id="themeToggle" class="settings-button theme-toggle" type="button" aria-label="切换到夜间模式">
+            <span id="themeToggleIcon" class="settings-icon" aria-hidden="true">☾</span><span id="themeToggleLabel">夜间</span>
+          </button>
+          <a class="settings-button focus-mode-link" href="/focus" aria-label="进入专注模式" title="进入专注模式">
+            <span class="settings-icon" aria-hidden="true">▦</span><span>专注</span>
+          </a>
+          <a id="openSettings" class="settings-button settings-access settings-link" href="/settings" aria-label="打开本地设置" title="打开本地设置">
+            <span class="settings-icon" aria-hidden="true">⚙</span><span>设置</span>
+          </a>
+        </div>
+      </header>
+      <nav class="top-nav" aria-label="主导航">
+        <a class="top-nav-link" href="/workflows">
+          <span class="top-nav-content">
+            <svg class="top-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><path d="M10 6.5h4a2 2 0 0 1 2 2V14" /><path d="m13 12 3 3 3-3" /></svg>
+            <span class="top-nav-label">工作流</span>
+          </span>
+        </a>
+        <a class="top-nav-link" href="/prompt">
+          <span class="top-nav-content">
+            <svg class="top-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 4 5 5" /><path d="M4 20 14 10" /><path d="m13 6 5 5" /><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z" /></svg>
+            <span class="top-nav-label">提示词工坊</span>
+          </span>
+        </a>
+        <a class="top-nav-link active" href="/?workspace=submit" aria-current="page">
+          <span class="top-nav-content">
+            <svg class="top-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+            <span class="top-nav-label">任务提交</span>
+          </span>
+        </a>
+        <a class="top-nav-link" href="/outputs">
+          <span class="top-nav-content">
+            <svg class="top-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m8 4 3 16" /><path d="m16 4-3 16" /></svg>
+            <span class="top-nav-label">成片</span>
+          </span>
+        </a>
+        <a class="top-nav-link" href="/dashboard">
+          <span class="top-nav-content">
+            <svg class="top-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5" /><path d="M4 19h16" /><path d="m7 15 3-4 3 2 4-6" /><path d="M17 7h2v2" /></svg>
+            <span class="top-nav-label">仪表盘</span>
+          </span>
+        </a>
+        <a class="top-nav-link" href="/settings">
+          <span class="top-nav-content">
+            <svg class="top-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2" /><path d="M12 19v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M3 12h2" /><path d="M19 12h2" /><path d="m4.93 19.07 1.41-1.41" /><path d="m17.66 6.34 1.41-1.41" /><circle cx="12" cy="12" r="4" /></svg>
+            <span class="top-nav-label">设置</span>
+          </span>
+        </a>
+      </nav>
+
+      <section class="intro-block">
+        <div class="eyebrow">TASK SUBMIT / WORKSPACE</div>
+        <h1>把所有任务，<br /><em>收进一个提交台。</em></h1>
+        <p>在三个功能区之间切换：提交 RunningHub 工作流、直接生成 Codex 图像，或把图片 / 视频处理成深度与骨骼素材。所有结果统一进入任务队列和成片库。</p>
+      </section>
+
+      <div class="workspace">
+        <main class="main-column">
+          <div class="submit-workspace-tabs-sticky">
+            <div class="submit-workspace-tabs-heading"><div class="section-kicker">SUBMIT WORKSPACE</div><span>选择功能区</span></div>
+            <div id="submitWorkspaceTabs" class="submit-workspace-tabs" role="tablist" aria-label="任务提交功能区">
+              <button id="submitWorkspaceTabSubmit" class="submit-workspace-tab active" data-submit-section="submit" type="button" role="tab" aria-selected="true" aria-controls="submitWorkspacePanelSubmit"><span class="submit-workspace-tab-index">01</span><span><strong>任务提交</strong><small>RunningHub 工作流</small></span></button>
+              <button id="submitWorkspaceTabCodex" class="submit-workspace-tab" data-submit-section="codex" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelCodex"><span class="submit-workspace-tab-index">02</span><span><strong>Codex 图像生成</strong><small>文本 + 参考图</small></span></button>
+              <button id="submitWorkspaceTabMedia" class="submit-workspace-tab" data-submit-section="media" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelMedia"><span class="submit-workspace-tab-index">03</span><span><strong>深度与骨骼</strong><small>图片 + 视频</small></span></button>
+              <button id="submitWorkspaceTabTts" class="submit-workspace-tab" data-submit-section="tts" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelTts"><span class="submit-workspace-tab-index">04</span><span><strong>角色语音</strong><small>人物 + 文本</small></span></button>
+            </div>
+          </div>
+
+          <div id="submitWorkspacePanels" class="submit-workspace-panels">
+          <section id="submitWorkspacePanelSubmit" class="panel workflow-panel submit-workspace-panel" data-submit-section="submit" role="tabpanel" aria-labelledby="submitWorkspaceTabSubmit">
+            <div class="panel-heading">
+              <div>
+                <div class="section-kicker">01 / WORKFLOW</div>
+                <h2 id="workflowPanelTitle">导入 API 工作流</h2>
+              </div>
+              <div class="workflow-heading-actions">
+                <div class="workflow-library-actions" aria-label="工作流库操作">
+                  <button id="editWorkflowSnapshotButton" class="secondary-button button-compact" type="button" hidden>编辑快照</button>
+                  <button id="saveWorkflowLibraryButton" class="secondary-button button-compact" type="button" hidden>保存到工作流库</button>
+                  <button id="exportWorkflowButton" class="secondary-button button-compact" type="button" hidden>导出</button>
+                </div>
+              </div>
+            </div>
+            <label class="dropzone" id="workflowDropzone" for="workflowFile">
+              <input id="workflowFile" type="file" accept=".json,application/json" />
+              <span class="drop-icon" aria-hidden="true">+</span>
+              <span class="drop-title" id="workflowFilename">选择或拖入 API 格式 JSON</span>
+              <span class="drop-hint">节点格式应为 { nodeId: { inputs, class_type } }</span>
+            </label>
+            <div id="analysisStatus" class="inline-status" hidden></div>
+            <div id="workflowRemoteConfig" class="workflow-remote-config" hidden>
+              <label class="field-group" for="remoteWorkflowId">
+                <span class="field-label">RunningHub workflowId <span class="required-mark">必填</span></span>
+                <input id="remoteWorkflowId" type="text" inputmode="numeric" autocomplete="off" placeholder="输入 RunningHub 工作流 ID" />
+                <span class="field-hint">这是远程工作流 ID，不是本地 wf_... ID；可从 RunningHub 工作流页面 URL 获取。</span>
+              </label>
+            </div>
+            <div id="workflowSummary" class="workflow-summary" hidden></div>
+            <div id="workflowInputs" class="workflow-inputs" hidden></div>
+
+            <div class="submit-strip" id="submitStrip" hidden>
+              <div class="submit-config">
+                <div class="submit-field submit-instance-field">
+                  <label class="field-label" for="instanceType">提交机型</label>
+                  <select id="instanceType">
+                    <option value="default">Standard · 24GB</option>
+                    <option value="plus">Plus · 48GB</option>
+                    <option value="ultra">Ultra · 84GB</option>
+                  </select>
+                </div>
+                <div class="submit-field submit-project-field">
+                  <label class="field-label" for="taskProject">项目选择</label>
+                  <select id="taskProject">
+                    <option value="">自动归类</option>
+                    <option value="__unclassified__">未归类</option>
+                  </select>
+                </div>
+              </div>
+              <div class="submit-repeat-control">
+                  <label class="field-label" for="submitRepeatCount">提交次数</label>
+                  <input id="submitRepeatCount" type="number" min="1" max="20" step="1" value="1" inputmode="numeric" disabled />
+                </div>
+              <label class="submit-task-name" for="taskName">
+                <span class="field-label">本次任务名称</span>
+                <input id="taskName" type="text" maxlength="160" autocomplete="off" placeholder="例如：千夏展示片" />
+              </label>
+              <button id="submitButton" class="primary-button" type="button">
+                <span class="button-glyph">→</span><span class="button-label">加入任务队列</span>
+              </button>
+            </div>
+          </section>
+
+          <section id="submitWorkspacePanelCodex" class="panel toolbox-block submit-workspace-panel" data-submit-section="codex" role="tabpanel" aria-labelledby="submitWorkspaceTabCodex" hidden>
+            <div class="toolbox-block-heading">
+              <div class="toolbox-block-number">02</div>
+              <div><div class="section-kicker">CODEX / IMAGE GENERATION</div><h2>Codex 图像生成</h2></div>
+              <span class="toolbox-block-chip">AUTO</span>
+            </div>
+            <p class="toolbox-description">输入一段要求，可附带任意数量参考图。处理结束后，结果会自动记录为一个本地任务并进入成片库。</p>
+            <div class="toolbox-auto-command-note">
+              <span class="toolbox-auto-command-mark" aria-hidden="true">✦</span>
+              <span><strong>自动调用 Codex 图像生成</strong><small>应用会根据生成要求和参考图自动准备任务，无需填写或理解命令。</small></span>
+              <span class="toolbox-auto-command-key">AUTO</span>
+            </div>
+            <div class="toolbox-field-group toolbox-image-options">
+              <div class="toolbox-field-heading"><span>模型与画幅</span><span>MODEL · RESOLUTION · RATIO</span></div>
+              <div class="toolbox-select-grid">
+                <label class="toolbox-select-field" for="codexImageModel"><span>模型</span><select id="codexImageModel" aria-label="图像模型"><option value="gpt-image-2.5-flare" selected>gpt-image-2.5-flare · 快速</option><option value="gpt-image-2.5-sunburst">gpt-image-2.5-sunburst · 精细</option></select></label>
+                <label class="toolbox-select-field" for="codexImageResolution"><span>分辨率</span><select id="codexImageResolution"><option value="1k" selected>1K</option><option value="2k">2K</option><option value="4k">4K</option></select></label>
+                <label class="toolbox-select-field" for="codexImageSize"><span>比例</span><select id="codexImageSize"><option value="9:16" selected>9:16 · 竖屏</option><option value="1:1">1:1 · 方形</option><option value="16:9">16:9 · 横屏</option><option value="4:3">4:3 · 标准</option><option value="3:4">3:4 · 竖幅</option><option value="3:2">3:2 · 横幅</option><option value="2:3">2:3 · 竖幅</option><option value="4:5">4:5 · 竖幅</option><option value="5:4">5:4 · 横幅</option><option value="2:1">2:1 · 横幅</option><option value="1:2">1:2 · 竖幅</option><option value="3:1">3:1 · 超宽</option><option value="1:3">1:3 · 超长</option><option value="21:9">21:9 · 超宽</option><option value="9:21">9:21 · 超长</option><option value="auto">自动</option></select></label>
+              </div>
+            </div>
+            <div class="toolbox-field-group">
+              <div class="toolbox-field-heading"><span>参考图</span><span class="toolbox-count"><strong id="referenceCount">0</strong> / 不限</span></div>
+              <input id="referencePicker" class="visually-hidden" type="file" accept="image/*" multiple />
+              <div id="referenceDropzone" class="toolbox-dropzone" tabindex="0" role="button" aria-label="添加参考图">
+                <span class="toolbox-drop-mark" aria-hidden="true">＋</span><span><strong>拖入参考图</strong><small>也可以点击选择；0 张也可以直接出图</small></span><span class="toolbox-drop-key">IMAGE</span>
+              </div>
+              <div id="referenceGrid" class="toolbox-reference-grid" aria-live="polite"><div class="toolbox-empty-hint">暂未添加参考图</div></div>
+            </div>
+            <label class="toolbox-field-group" for="codexPrompt"><span class="toolbox-field-heading"><span>生成要求</span><span>TEXT</span></span><textarea id="codexPrompt" rows="5" placeholder="描述画面、主体、风格和你希望 Codex 处理的重点…"></textarea></label>
+            <div class="toolbox-submit-row"><button id="submitCodexImage" class="primary-button" type="button">运行 Codex 图像生成 <span aria-hidden="true">→</span></button><span id="codexTaskStatus" class="toolbox-inline-status" role="status"></span><span id="codexTaskId" class="toolbox-inline-task-id" aria-label="任务 ID"></span></div>
+            <div id="codexTaskResult" class="toolbox-task-result" hidden></div>
+          </section>
+
+          <section id="submitWorkspacePanelMedia" class="panel toolbox-block submit-workspace-panel" data-submit-section="media" role="tabpanel" aria-labelledby="submitWorkspaceTabMedia" hidden>
+            <div class="toolbox-block-heading">
+              <div class="toolbox-block-number">03</div>
+              <div><div class="section-kicker">DEPTH / SKELETON MAP</div><h2>深度与骨骼</h2></div>
+              <span class="toolbox-block-chip">IMAGE + VIDEO</span>
+            </div>
+            <p class="toolbox-description">导入单张图片或视频，选择输出类型。视频统一按 24 帧/秒读取，可按起始帧和处理时长预览、处理指定片段。</p>
+            <input id="mediaPicker" class="visually-hidden" type="file" accept="image/*,video/*" />
+            <div class="toolbox-media-input-card">
+              <div class="toolbox-media-input-head">
+                <div><strong>Load Image / Video</strong><small>ToolboxMediaInput</small></div>
+                <span class="toolbox-media-input-chip">IMAGE · VIDEO</span>
+              </div>
+              <div id="mediaDropzone" class="toolbox-dropzone toolbox-media-dropzone" tabindex="0" role="button" aria-label="添加图片或视频">
+                <span class="toolbox-drop-mark" aria-hidden="true">↥</span><span><strong>拖入图片或视频</strong><small>图片处理一张；视频按 24 FPS 处理</small></span><span class="toolbox-drop-key">MEDIA</span>
+              </div>
+              <div class="toolbox-media-path-row">
+                <span id="mediaPathLabel" class="toolbox-media-path" title="尚未选择本地媒体">尚未选择本地媒体</span>
+                <button id="mediaChooseButton" class="secondary-button button-compact" type="button">选择文件</button>
+                <button id="mediaOpenFolderButton" class="secondary-button button-compact" type="button" hidden>打开文件夹</button>
+              </div>
+              <div id="mediaPreview" class="toolbox-media-preview"><div class="toolbox-empty-hint">等待输入媒体</div></div>
+              <div id="mediaMeta" class="toolbox-media-meta" hidden></div>
+            </div>
+            <div class="toolbox-media-settings-row">
+              <div class="toolbox-field-group">
+                <div class="toolbox-field-heading"><span>处理分辨率</span><span>RESIZE FIRST</span></div>
+                <label class="toolbox-select-field" for="mediaResolution"><select id="mediaResolution" aria-label="处理分辨率">
+                  <option value="original" selected>原始</option>
+                  <option value="480p">480p</option>
+                  <option value="720p">720p</option>
+                  <option value="1080p">1080p</option>
+                </select></label>
+              </div>
+              <div class="toolbox-field-group">
+                <div class="toolbox-field-heading"><span>读取的起始帧</span><span>VIDEO · 24 FPS</span></div>
+                <label class="toolbox-duration-field" for="mediaStartFrame">
+                  <input id="mediaStartFrame" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="读取的起始帧" />
+                  <span>帧 · 从第 0 帧开始，预览会同步跳到这里</span>
+                </label>
+              </div>
+              <div class="toolbox-field-group">
+                <div class="toolbox-field-heading"><span>处理时长</span><span>VIDEO ONLY</span></div>
+                <label class="toolbox-duration-field" for="mediaDuration">
+                  <input id="mediaDuration" type="number" min="0.1" step="0.1" inputmode="decimal" placeholder="全片" aria-label="处理时长（秒）" />
+                  <span>秒 · 从起始帧开始读取，超过实际范围按实际范围处理</span>
+                </label>
+              </div>
+            </div>
+            <div class="toolbox-field-group">
+              <div class="toolbox-field-heading"><span>输出类型</span><span>PROCESSOR</span></div>
+              <div id="toolboxModeTabs" class="toolbox-mode-tabs" role="tablist" aria-label="输出类型">
+                <button class="toolbox-mode-tab active" data-mode="depth" type="button" role="tab" aria-selected="true"><span class="mode-swatch mode-swatch-depth"></span>深度图<small>黑白灰</small></button>
+                <button class="toolbox-mode-tab" data-mode="skeleton" type="button" role="tab" aria-selected="false"><span class="mode-swatch mode-swatch-skeleton"></span>骨骼图<small>彩色</small></button>
+                <button class="toolbox-mode-tab" data-mode="depth_skeleton" type="button" role="tab" aria-selected="false"><span class="mode-swatch mode-swatch-combined"></span>深度 + 骨骼<small>同一张图</small></button>
+              </div>
+            </div>
+            <div class="toolbox-submit-row"><button id="submitMediaProcess" class="primary-button" type="button">生成处理结果 <span aria-hidden="true">→</span></button><span id="mediaTaskStatus" class="toolbox-inline-status" role="status"></span><span id="mediaTaskId" class="toolbox-inline-task-id" aria-label="任务 ID"></span></div>
+            <div id="mediaTaskResult" class="toolbox-task-result" hidden></div>
+          </section>
+          <section id="submitWorkspacePanelTts" class="panel toolbox-block submit-workspace-panel tts-workspace-panel" data-submit-section="tts" role="tabpanel" aria-labelledby="submitWorkspaceTabTts" hidden>
+            <div class="toolbox-block-heading">
+              <div class="toolbox-block-number">04</div>
+              <div><div class="section-kicker">CHARACTER / VOICE</div><h2>角色语音</h2></div>
+              <span class="toolbox-block-chip">GPT-SOVITS V4</span>
+            </div>
+            <p class="toolbox-description">从 VideoMake 的本地角色音色中选择人物，输入台词即可生成语音。每个角色使用自己的 GPT、SoVITS 和参考音频资产。</p>
+            <div class="toolbox-auto-command-note tts-runtime-note">
+              <span class="toolbox-auto-command-mark" aria-hidden="true">♫</span>
+              <span><strong>本地角色音色</strong><small id="ttsRuntimeStatus">正在读取可用人物…</small></span>
+              <span class="toolbox-auto-command-key">LOCAL</span>
+            </div>
+            <div class="toolbox-field-group">
+              <div class="toolbox-field-heading"><span>人物</span><span>CHARACTER</span></div>
+              <div class="tts-voice-select-row">
+                <label class="toolbox-select-field" for="ttsVoice"><select id="ttsVoice" aria-label="人物"><option value="">读取中…</option></select></label>
+                <div id="ttsVoiceMeta" class="tts-voice-meta"><strong>—</strong><small>选择人物后试听参考音频</small></div>
+              </div>
+              <div id="ttsReferenceAudio" class="tts-reference-audio" hidden></div>
+            </div>
+            <label class="toolbox-field-group" for="ttsText"><span class="toolbox-field-heading"><span>语音内容</span><span>TEXT</span></span><textarea id="ttsText" rows="8" placeholder="输入要生成的台词或旁白…"></textarea></label>
+            <div class="toolbox-submit-row"><button id="submitTts" class="primary-button" type="button">生成角色语音 <span aria-hidden="true">→</span></button><span id="ttsTaskStatus" class="toolbox-inline-status" role="status"></span><span id="ttsTaskId" class="toolbox-inline-task-id" aria-label="任务 ID"></span></div>
+            <div id="ttsTaskResult" class="toolbox-task-result" hidden></div>
+          </section>
+          </div>
+
+        </main>
+
+        <aside class="queue-column">
+          <nav class="process-nav" aria-label="工作流流程">
+            <span class="process-index">01—04</span>
+            <button class="process-step active" type="button" data-process-step="workflow">导入工作流</button>
+            <span class="process-arrow" aria-hidden="true">→</span>
+            <button class="process-step" type="button" data-process-step="inputs">输入节点</button>
+            <span class="process-arrow" aria-hidden="true">→</span>
+            <button class="process-step" type="button" data-process-step="queue">任务队列</button>
+          </nav>
+          <section class="panel queue-panel">
+            <div class="queue-heading">
+              <div>
+                <div class="section-kicker">03 / TASK QUEUE</div>
+                <h2>任务队列</h2>
+              </div>
+              <div id="queueCount" class="queue-count">0</div>
+            </div>
+            <div class="queue-caption"><span class="live-line"></span>自动更新 · 数字统计进行中任务 · 历史记录持续保留</div>
+            <div id="queueList" class="queue-list">
+              <div class="page-loading-state" role="status">
+                <span class="page-loading-mark" aria-hidden="true"></span>
+                <strong>正在读取任务队列</strong>
+                <span>正在同步本机任务记录…</span>
+              </div>
+            </div>
+            <nav id="queuePagination" class="queue-pagination" aria-label="任务队列分页" hidden></nav>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <div id="toast" class="toast-stack" role="status" aria-live="polite" aria-atomic="false"></div>
+    <div id="settingsModal" class="modal-backdrop" hidden>
+      <section class="panel settings-panel settings-modal-panel dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="panel-heading compact-heading">
+          <div>
+            <div class="section-kicker">LOCAL SETTINGS</div>
+            <h2 id="settingsTitle">本地设置</h2>
+          </div>
+          <button id="closeSettings" class="close-button" type="button" aria-label="关闭设置">×</button>
+        </div>
+        <div class="settings-note settings-description">数据只写入项目 web 目录；产物目录可使用绝对路径。</div>
+        <div class="setting-grid">
+          <label class="field-group">
+            <span class="field-label">默认产物目录</span>
+            <input id="outputDir" type="text" placeholder="data/outputs" />
+          </label>
+          <div class="setting-actions">
+            <button id="chooseOutputDir" class="secondary-button" type="button">选择文件夹</button>
+            <button id="saveOutputDir" class="secondary-button" type="button">保存路径</button>
+          </div>
+        </div>
+        <div class="credential-heading video-download-heading">
+          <div>
+            <span class="field-label">社交视频下载</span>
+            <span class="field-hint">支持 Bilibili、X 和抖音。可选配置 Cookie 文件路径，下载时由本机 yt-dlp 读取，不会上传或写入 Cookie 内容。</span>
+          </div>
+        </div>
+        <div class="setting-grid douyin-cookie-setting">
+          <label class="field-group">
+            <span class="field-label">Cookie 文件路径（可选）</span>
+            <input id="douyinCookiePath" type="text" autocomplete="off" placeholder="例如 /Users/apple/Documents/VideoMake/social-cookies.txt" />
+          </label>
+          <div class="setting-actions">
+            <button id="chooseDouyinCookie" class="secondary-button" type="button">选择文件</button>
+            <button id="saveDouyinCookie" class="secondary-button" type="button">保存路径</button>
+          </div>
+        </div>
+        <div class="credential-heading prompt-resources-heading">
+          <div>
+            <span class="field-label">提示词工坊媒体库</span>
+            <span class="field-hint">动作、人物、音频、背景和服装统一从 ref 根目录的 JSON 文件读取，保存后立即重新扫描。</span>
+          </div>
+        </div>
+        <div class="setting-grid media-library-root-setting">
+          <label class="field-group">
+            <span class="field-label field-label-with-help">媒体库 ref 文件夹 <button class="field-help" type="button" aria-label="媒体库目录读取说明" data-tooltip="统一读取 ref/pose/pose.json、character/character.json、audio/audio.json、background/background.json 和 clothes/clothes.json。媒体文件保留相对路径，不会复制。">?</button></span>
+            <input id="mediaLibraryRoot" type="text" placeholder="~/Documents/VideoMake/ref" />
+            <span class="field-hint">保存后会立即重新扫描动作、人物、音频、背景和服装卡片。</span>
+          </label>
+          <div class="setting-actions">
+            <button id="chooseMediaLibraryRoot" class="secondary-button" type="button">选择文件夹</button>
+          </div>
+        </div>
+        <div class="setting-resource-actions">
+          <button id="savePromptResources" class="secondary-button" type="button">保存媒体库并扫描</button>
+        </div>
+        <div class="credential-heading pose-import-heading">
+          <div>
+            <span class="field-label">动作导入媒体</span>
+            <span class="field-hint">动作库和组装台的“导入媒体”按钮可导入深度图或骨骼图，设置会同步到提示词工坊。</span>
+          </div>
+        </div>
+        <div class="setting-grid pose-media-import-setting">
+          <label class="field-group">
+            <span class="field-label">默认导入类型</span>
+            <select id="poseMediaImportType">
+              <option value="depth">深度图</option>
+              <option value="skeleton">骨骼图</option>
+            </select>
+            <span class="field-hint">深度图适合空间结构参考；骨骼图适合姿势约束。</span>
+          </label>
+          <button id="savePoseMediaImportType" class="secondary-button" type="button">保存导入类型</button>
+        </div>
+        <div class="credential-heading translation-heading">
+          <div>
+            <span class="field-label">阿里云翻译</span>
+            <span class="field-hint">用于提示词工坊的自由文本翻译。密钥只保存在本机 data/keys.json，也可使用环境变量。</span>
+          </div>
+          <span id="aliyunTranslationStatus" class="credential-status">未配置</span>
+        </div>
+        <div class="translation-credential-grid">
+          <label class="field-group">
+            <span class="field-label">AccessKey ID</span>
+            <input id="aliyunTranslationAccessKeyId" type="text" autocomplete="off" placeholder="输入阿里云 AccessKey ID" />
+          </label>
+          <label class="field-group">
+            <span class="field-label">AccessKey Secret</span>
+            <input id="aliyunTranslationAccessKeySecret" type="password" autocomplete="new-password" placeholder="输入 AccessKey Secret" />
+          </label>
+        </div>
+        <div class="translation-actions">
+          <span class="field-hint">环境变量：ALIBABA_CLOUD_ACCESS_KEY_ID / ALIBABA_CLOUD_ACCESS_KEY_SECRET</span>
+          <button id="saveAliyunTranslation" class="secondary-button" type="button">保存翻译配置</button>
+        </div>
+        <div class="credential-heading telegram-heading">
+          <div>
+            <span class="field-label">Telegram Bot</span>
+            <span class="field-hint">推送与入站共用同一个 Bot Token，下面分别配置两项功能的 Chat ID。</span>
+          </div>
+          <span id="telegramStatus" class="credential-status">未配置</span>
+        </div>
+        <div class="telegram-shared-token-field">
+          <label class="field-group">
+            <span class="field-label">Bot Token（推送与入站共用）</span>
+            <input id="telegramBotToken" type="password" autocomplete="new-password" placeholder="输入 BotFather 发放的 Token" />
+          </label>
+        </div>
+        <div class="telegram-function-panel telegram-push-panel">
+          <div class="telegram-function-heading"><div><span class="field-label">Telegram 成片推送</span><span class="field-hint">任务下载完成后，自动发送图片、视频、音频或其它成片到指定聊天。</span></div></div>
+          <label class="field-group"><span class="field-label">推送 Chat ID（多个用逗号分隔）</span><input id="telegramPushChatId" type="text" autocomplete="off" placeholder="例如 -1001234567890, -1009876543210（或 5468961835）" /></label>
+          <div class="telegram-actions">
+            <label class="telegram-enabled-toggle"><input id="telegramEnabled" type="checkbox" /><span class="telegram-toggle-track" aria-hidden="true"></span><span>启用成片自动推送</span></label>
+            <span class="telegram-button-group">
+              <button id="saveTelegram" class="secondary-button" type="button">保存 Telegram</button>
+              <button id="clearTelegram" class="secondary-button" type="button">清除配置</button>
+              <button id="testTelegram" class="secondary-button" type="button">测试连接</button>
+            </span>
+          </div>
+        </div>
+        <div class="telegram-function-panel telegram-inbound-panel">
+          <div class="telegram-function-heading"><div><span class="field-label">Telegram 入站</span><span class="field-hint">图片和视频链接入站共用此 Chat ID；填写 * 可接收任意聊天的入站消息。</span></div></div>
+          <label class="field-group"><span class="field-label">入站 Chat ID（多个用逗号分隔）</span><input id="telegramInboundChatId" type="text" autocomplete="off" placeholder="例如 5468961835 或 *" /><span class="field-hint">只在入站功能中生效；* 表示允许任意账号。</span></label>
+          <div class="telegram-inbound-row">
+            <label class="telegram-enabled-toggle"><input id="telegramInboundEnabled" type="checkbox" /><span class="telegram-toggle-track" aria-hidden="true"></span><span>启用图片入站</span></label>
+            <label class="telegram-enabled-toggle"><input id="telegramVideoInboundEnabled" type="checkbox" /><span class="telegram-toggle-track" aria-hidden="true"></span><span>启用视频链接入站</span></label>
+          </div>
+          <div class="telegram-inbound-copy"><span id="telegramInboundWorkflow" class="field-hint">未选择图片入站工作流。请在工作流卡片上点击“设为 Telegram 入站”。</span></div>
+        </div>
+        <div class="setting-grid personal-capacity-setting">
+          <label class="field-group">
+            <span class="field-label">个人 API Key 并发数</span>
+            <input id="personalCapacity" type="number" min="1" max="3" step="1" inputmode="numeric" value="3" />
+            <span class="field-hint">默认 3；仅影响普通个人 API Key，企业级、共享或 Wallet API Key 保持 100。</span>
+          </label>
+          <button id="savePersonalCapacity" class="secondary-button" type="button">保存并发数</button>
+        </div>
+        <div class="setting-grid api-key-strategy-setting">
+          <label class="field-group">
+            <span class="field-label">API Key 调度策略</span>
+            <select id="apiKeyStrategy">
+              <option value="personal_then_shared">优先个人，满载时使用共享/企业</option>
+              <option value="personal_only">仅使用个人 API Key</option>
+              <option value="shared_only">仅使用共享/企业 API Key</option>
+            </select>
+            <span class="field-hint">任务提交页不再选择 API Key，所有提交都会按此策略自动调度。</span>
+          </label>
+          <button id="saveApiKeyStrategy" class="secondary-button" type="button">保存策略</button>
+        </div>
+        <div class="credential-heading account-heading">
+          <div>
+            <span class="field-label">账号管理</span>
+            <span class="field-hint">首次添加后会打开对应站点登录页。Electron 会保存独立本地会话，不保存密码或 token。</span>
+          </div>
+        </div>
+        <div class="account-note">点击“签到”会刷新该账号的 RunningHub 会话，并读取网站返回的今日登录奖励状态；如果网站要求重新认证，请在账号窗口完成登录。</div>
+        <div id="accountList" class="credential-list account-list"></div>
+        <form id="accountForm" class="credential-editor account-editor">
+          <div class="editor-title">添加一个 RunningHub 登录账号</div>
+          <div class="editor-grid account-editor-grid">
+            <input id="accountName" type="text" placeholder="名称，例如：主账号" autocomplete="off" />
+            <select id="accountSite">
+              <option value="cn">runninghub.cn</option>
+              <option value="ai">runninghub.ai</option>
+            </select>
+            <button id="addAccount" class="secondary-button" type="submit">添加并登录</button>
+          </div>
+        </form>
+        <div class="credential-heading">
+          <div>
+            <span class="field-label">当前账号 API Key</span>
+            <span class="field-hint">点击账号卡片即可切换；这里只显示当前账号的 API Key。</span>
+          </div>
+          <button id="refreshKeys" class="text-button" type="button">刷新全部</button>
+        </div>
+        <div id="credentialList" class="credential-list"></div>
+        <form id="credentialForm" class="credential-editor">
+          <div class="editor-title">添加一个 API Key</div>
+          <div class="editor-grid">
+            <input id="keyName" type="text" placeholder="名称，例如：主账号" />
+            <select id="keySite">
+              <option value="cn">runninghub.cn</option>
+              <option value="ai">runninghub.ai</option>
+            </select>
+            <input id="keyValue" type="password" placeholder="粘贴 API Key" autocomplete="off" />
+            <button id="addKey" class="secondary-button" type="button">检测并保存</button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <div id="taskModal" class="modal-backdrop" hidden>
+      <div class="task-modal dialog-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-heading">
+          <div>
+            <div class="section-kicker">TASK DETAIL</div>
+            <h2 id="modalTitle">任务详情</h2>
+          </div>
+          <button id="closeModal" class="close-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <div id="modalMeta" class="modal-meta"></div>
+        <div id="modalDiagnostics" class="modal-diagnostics"></div>
+        <div id="modalOutputs" class="modal-outputs"></div>
+      </div>
+    </div>
+    <div id="workflowEditorModal" class="modal-backdrop" hidden>
+      <section class="workflow-modal-panel dialog-panel" role="dialog" aria-modal="true" aria-labelledby="workflowEditorTitle">
+        <div class="modal-heading">
+          <div>
+            <div class="section-kicker">WORKFLOW RECORD</div>
+            <h2 id="workflowEditorTitle">编辑当前工作流快照</h2>
+          </div>
+          <button id="closeWorkflowEditor" class="close-button" type="button" aria-label="关闭工作流编辑器">×</button>
+        </div>
+        <p id="workflowEditorHint" class="workflow-editor-hint">这里编辑的是当前任务提交用的临时工作流快照；应用后可继续配置输入，保存到工作流库才会生成新的库条目。</p>
+        <form id="workflowEditorForm" class="workflow-editor-form">
+          <label class="field-group">
+            <span class="field-label">工作流名称</span>
+            <input id="workflowRecordName" type="text" required maxlength="160" placeholder="例如：人物修复 API" />
+          </label>
+          <div class="workflow-editor-grid">
+            <label class="field-group">
+              <span class="field-label">所属账号</span>
+              <select id="workflowRecordAccount">
+                <option value="">未绑定账号</option>
+              </select>
+            </label>
+            <label class="field-group">
+              <span class="field-label">RunningHub workflowId</span>
+              <input id="workflowRecordRemoteId" type="text" inputmode="numeric" autocomplete="off" placeholder="可稍后补充" />
+            </label>
+          </div>
+          <section class="workflow-editor-config" aria-labelledby="workflowEditorConfigLabel">
+            <div class="workflow-editor-json-heading">
+              <div>
+                <span id="workflowEditorConfigLabel" class="field-label">配置输入</span>
+                <span class="field-hint">沿用工作流页的输入配置编辑器，修改后会更新当前快照的输入节点。</span>
+              </div>
+            </div>
+            <label class="workflow-config-mode field-group">
+              <span class="field-label">输入识别模式</span>
+              <select id="workflowConfigMode">
+                <option value="auto">自动识别文件、提示词、尺寸和 RandomNoise</option>
+                <option value="manual">手动选择需要在任务提交页显示的输入</option>
+              </select>
+            </label>
+            <div id="workflowConfigBuilder" class="workflow-config-builder">
+              <div class="workflow-config-builder-heading">
+                <div><strong>添加输入字段</strong><span>可以把任意标量节点字段加入任务提交面板。</span></div>
+              </div>
+              <div class="workflow-config-add-grid">
+                <label class="field-group"><span class="field-label">节点</span><select id="workflowConfigNode"></select></label>
+                <label class="field-group"><span class="field-label">字段</span><select id="workflowConfigField"></select></label>
+                <button id="addWorkflowConfigItem" class="secondary-button button-compact" type="button">＋ 添加</button>
+              </div>
+            </div>
+            <div id="workflowConfigItems" class="workflow-config-items"></div>
+          </section>
+          <section class="workflow-editor-json" aria-labelledby="workflowEditorJsonLabel">
+            <div class="workflow-editor-json-heading">
+              <div>
+                <span id="workflowEditorJsonLabel" class="field-label">JSON 文件</span>
+                <span class="field-hint">可直接编辑 API 格式 JSON；应用后会重新分析工作流输入。</span>
+              </div>
+              <div class="workflow-editor-json-actions">
+                <button id="restoreWorkflowJson" class="secondary-button" type="button">复原</button>
+              </div>
+            </div>
+            <textarea id="workflowEditorJson" aria-label="当前工作流 API JSON" spellcheck="false" required></textarea>
+            <div id="workflowJsonStatus" class="workflow-json-status" role="status" aria-live="polite"></div>
+          </section>
+          <div class="dialog-actions">
+            <button id="cancelWorkflowEditor" class="secondary-button" type="button">取消</button>
+            <button id="saveWorkflowRecord" class="primary-button" type="submit"><span class="button-glyph">✓</span><span>应用到当前快照</span></button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <div id="mediaInputModal" class="modal-backdrop" hidden>
+      <section class="media-input-dialog dialog-panel" role="dialog" aria-modal="true" aria-labelledby="mediaInputTitle">
+        <div class="modal-heading">
+          <div>
+            <div class="section-kicker">MEDIA INPUT NODE</div>
+            <h2 id="mediaInputTitle">添加媒体输入</h2>
+          </div>
+          <button id="closeMediaInput" class="close-button" type="button" aria-label="关闭添加媒体输入">×</button>
+        </div>
+        <p class="modal-description">添加一个可以在本次任务中独立选择文件的媒体节点。选择后会自动加入工作流，并在有 MiniMax H3 节点时接入对应参考输入。</p>
+        <label class="field-group" for="mediaInputType">
+          <span class="field-label">媒体类型</span>
+          <select id="mediaInputType">
+            <option value="image">图片 · LoadImage</option>
+            <option value="audio">音频 · LoadAudio</option>
+            <option value="video">视频 · VHS_LoadVideo</option>
+          </select>
+        </label>
+        <div id="mediaInputTypeDescription" class="media-input-type-description" role="status"></div>
+        <div class="dialog-actions">
+          <button id="cancelMediaInput" class="secondary-button" type="button">取消</button>
+          <button id="confirmMediaInput" class="primary-button" type="button">添加媒体输入</button>
+        </div>
+      </section>
+    </div>
+    <div id="imagePreviewModal" class="modal-backdrop image-preview-backdrop" role="dialog" aria-modal="true" aria-label="图片预览" hidden>
+      <button id="closeImagePreview" class="image-preview-surface" type="button" aria-label="关闭图片预览">
+        <img id="imagePreviewImage" src="data:," alt="" />
+      </button>
+    </div>
+    <div id="workflowImageContextMenu" class="workflow-image-context-menu" role="menu" aria-label="图片操作" hidden>
+      <button type="button" role="menuitem" data-workflow-image-menu-action="copy">复制</button>
+    </div>
+    <script>window.RHMotion.startPageEnter();</script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

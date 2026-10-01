@@ -1,57 +1,134 @@
-# AGENTS.md
+# Web / Electron 开发规则
 
-本仓库是 RunningHub 官方 CLI **RH_CLI** 的一个 fork，扩展了「运行原始 ComfyUI 工作流 JSON」的能力，并附带若干示例工作流和鸭鸭图解码器。本文件为在此仓库工作的 Codex 提供上下文。
+本仓库主要是 RunningHub 工作流桌面应用。它同时提供浏览器 Web 版和 macOS Electron 开发版：前端负责编辑和展示，本地 Python 服务负责文件路径解析、任务调度、远程 RunningHub 请求、轮询和本地持久化。
 
-## 这个仓库是什么
+本文件适用于桌面应用；`cli/AGENTS.md` 补充 Python CLI 的规则。
 
-- 上游：`HM-RunningHub/RH_CLI`（官方 `rh` CLI，面向标准模型 + 已发布 AI 应用）。
-- 本 fork：`LLsetnow/RH_CLI`。在官方基础上新增了 `rh workflow run` 命令。
-- 本地 remote：`origin` = 你的 fork，`upstream` = 官方。同步上游：`git fetch upstream && git merge upstream/main`。
+## 项目结构
 
-## 相比官方新增的能力
+- `backend/server.py`：本地 HTTP 服务、静态文件服务和 JSON API。
+- `backend/app.py`：`LocalStore`、`TaskManager`、任务历史、并发调度、产物和重启恢复。
+- `backend/prompt_store.py`、`backend/action_store.py`、`backend/reference_store.py`：提示词、动作和参考资源索引。
+- `static/index.html`、`app.js`、`app.css`：任务提交页。
+- `static/prompt.*`：提示词工坊。
+- `static/outputs.*`：成片/产物浏览页。
+- `static/workflows.*`：本地工作流库管理页。
+- `static/motion.js`：页面切换、弹窗和媒体预览的共享动效。
+- `electron/main.cjs`、`preload.cjs`：Electron 主进程、本地服务启动和原生文件/目录选择器。
+- `scripts/start.sh`、`scripts/build-macos.sh`：Web 开发启动和 macOS 打包脚本。
+- `data/`：本地 API Key、账号、任务 SQLite、工作流副本、任务产物和提示词状态。
+- `docs/`：面向后续开发的架构、样式和验证说明；先阅读 [docs/README.md](./docs/README.md)。
 
-官方 `rh` 只能跑标准模型（`model run`）和已发布 AI 应用（`app run`，走 `/task/openapi/ai-app/run`，只能传 webappId + 节点参数）。本 fork 补上了**提交完整 ComfyUI 工作流图**这条路：
+## 核心数据边界
+
+- 普通拖入或选择的输入文件只保存本机绝对路径，不复制到项目目录；真正的远程上传只在提交任务时发生。
+- 输入文件统一保存到 `data/input/<来源>/`；剪贴板图片位于 `data/input/pasted/`，这是为了让浏览器剪贴板内容获得可复用的本地路径。
+- 工作流库只包含用户明确导入并保存的工作流，不得把历史任务或临时快照自动登记进工作流库。
+- 每个任务的 API 工作流快照、输入配置、阶段日志、错误详情和产物路径必须与任务历史保持可恢复关系。
+- API Key、账号凭证、token、代理密码和带 token 的 URL 不得出现在日志、截图、测试输出、文档或 git 中。
+- 不要通过删除整个 `data/`、SQLite 数据库或用户原始文件来修复单个任务；先定位具体记录并保留可恢复性。
+
+## 前端实现规则
+
+- 优先复用 `app.css` 中的颜色、圆角、阴影、动效和控件令牌；页面专属布局放在对应页面 CSS 中。
+- 任务提交页的 `input`、`select`、`textarea` 使用公共控件字号令牌；路径、节点 ID、workflowId 和 JSON 片段可使用等宽字体，但不要单独改变字号基线。
+- 在没有明确需求时，不要在按钮或选项框附近用小字、hint 或 note 解释功能；使用清晰的字段标签、控件状态和必要的无障碍名称表达含义。只有需求明确要求时，才添加这类可见辅助说明。
+- 前端交互优先局部刷新受影响的组件、列表或状态，避免无必要的整页或全局刷新；局部刷新必须保留当前筛选、滚动位置、媒体播放和键盘焦点等用户上下文。
+- 把文件、提示词或参考资源写入任务草稿/任务节点的按钮统一命名为“导入任务”；只有把 API JSON 保存到工作流库时才使用“导入工作流”。
+- 桌面端使用左侧固定导航，移动端使用顶部紧凑导航。四个页面的导航结构和顺序保持一致。
+- `.top-nav` 必须位于页面 `header` 外部，并保留独立的 `page-nav` View Transition 层，避免切换页面时出现两层导航重叠。
+- 图标按钮必须有 `aria-label`，必要时补充 `title`；交互元素要覆盖悬停、键盘聚焦、按下、禁用和加载状态。
+- 日夜模式使用现有语义颜色令牌和 `html[data-theme="light"]` 覆盖，不要给组件硬编码另一套颜色。
+- 新增动效必须尊重 `prefers-reduced-motion`，不得用持续刷新或大范围位移制造干扰，也不要使用 `scrollIntoView` 强行改变页面滚动位置。
+- 修改前端交互后，至少运行相关 JavaScript 的 `node --check` 和对应 Web 测试；涉及视觉变化时，同时检查桌面和窄屏布局。
+
+## 后端和任务规则
+
+- 文件路径、预览和远程上传是三个不同阶段，不能把本地预览成功误认为远程上传成功。
+- 本地任务队列必须遵守当前账号、API Key 归属和并发上限；个人 API Key 默认最多 3 个并发，企业、共享和 Wallet API Key 按当前项目规则最多 100 个并发。
+- 远程提交失败时，保留脱敏后的 `error_detail` 和阶段日志，便于从任务队列复制错误信息并定位节点。
+- 应用重启后先检查任务输出目录，再决定恢复完成、继续轮询或标记中断；不要只依赖内存中的轮询状态。
+- 工作流导出必须保留用户对文件输入、提示词、RandomNoise、尺寸和旁路节点的修改；发送给 RunningHub 前剥离本地元数据。
+- 新增 API 字段时，同时检查前端草稿、`server.py`、`app.py`、SQLite 迁移和任务加载逻辑，避免只改一侧。
+
+## 本地运行和验证
+
+从仓库根目录运行 Web 版：
 
 ```bash
-rh workflow run <工作流.json> [-w <workflowId>] -i <输入图> [--file nodeId:field=路径] [--set nodeId:field=value] [--encrypt --password <pw>] [-o 输出目录]
+./scripts/start.sh --no-browser
 ```
 
-- 自动上传输入图并注入 `LoadImage` 节点；提交 `/task/openapi/create`；轮询 `/task/openapi/outputs`；下载结果。
-- `--file nodeId:field=path`（可重复）上传图片、音频、视频等本地输入，并把返回的文件名注入对应节点字段；`--input` 仍是单图片快捷方式。
-- **`--set nodeId:field=value`**（可重复）覆盖任意节点参数，带类型自动转换。例：`--set 9:denoise=0.4`。
-- **`--encrypt [--password <pw>]`**：在每个 SaveImage 前自动插入鸭鸭图加密节点（`DuckHideNode`），下载到鸭子图后用本地 `SS_tools/macOS-duck-decoder` 自动解回真图（真图用干净文件名，鸭子图另存为 `*.duck.*`）。前提：服务器已装 SS_tools 加密节点，且本机为 macOS。
-- 代码位置：`src/rh_cli/workflow/{client.py,commands.py}`，在 `src/rh_cli/main.py` 注册。轮询走经典 outputs 端点（**不是**上游的 `/openapi/v2/query`，那个只适用于 AI 应用）。
-
-标准命令仍在：`rh check / image / video / model / app`。
-
-## 安装与配置
+运行 macOS Electron 开发版：
 
 ```bash
-uv tool install <本仓库路径> --editable --with socksio   # editable：改源码即时生效
-rh auth set-key <你的 API Key>                            # 存到 ~/.config/rh/config.toml（不是 .env）
-rh check                                                  # 验证 key / 查余额
+npm run electron
 ```
 
-- **`--with socksio` 是必需的**：本机有本地 SOCKS 代理（`127.0.0.1:12334`），否则 httpx 建客户端就崩。
-- **代理陷阱**：`NO_PROXY` 含 `.cn`，所以 `runninghub.cn` 直连、绕过代理；国际接口才走代理。
-- `workflowId` 可由 `-w` 传入（工作流页面 URL 末尾的数字），也可省略；省略时直接提交完整的 ComfyUI API 工作流 JSON。
+推荐验证：
 
-## 附带资源
+```bash
+.venv/bin/python -m pytest -q tests
+node --check static/app.js
+node --check static/prompt.js
+node --check static/outputs.js
+node --check static/workflows.js
+node --check static/motion.js
+git diff --check
+```
 
-- `workflows/`：示例 ComfyUI 工作流 JSON（**API 格式**导出）——`FaceFix_api.json`、`Qwen 单图 去背景杂物 v2_api.json`。
-- `SS_tools/macOS-duck-decoder`：鸭鸭图（隐写图）解码器二进制（25 MB，Mach-O，**仅 macOS**，源码 copyangle/SS_tools）。
-  > `--encrypt` 会自动完成「注入加密节点 + 下载后本地解密」。也可手动解任意鸭子图：
-  > `SS_tools/macOS-duck-decoder --duck <encoded.png> --out <decoded.png> [--password <pw>]`
-  > ⚠️ 该二进制在 Linux（如 astrbot 服务器 `root@139.224.135.129`）上无法运行；服务器端若需解密要另配 Linux 版解码器。
+测试默认不得创建真实远程任务，不得产生 RH 币或费用。完整测试出现失败时，要区分本次改动引入的问题和本机参考资源导致的既有基线差异。
 
-## 工作流 JSON 注意事项
+## 新功能分支、提交和合并流程
 
-- 必须是 **API 格式**导出（节点为 `{id: {inputs, class_type, _meta}}`）。
-- **常见报错**：提交后 `code 805` + `prompt_outputs_failed_validation` + `tuple index out of range`，多为某节点引用了另一节点**不存在的输出槽**（节点版本/连线不匹配）。修法：在 RunningHub 网页版跑通后**重新导出 API JSON**，别盲改本地文件。
-- 轮询状态码：`0` 完成、`804` 运行中、`813` 排队、`805` 失败；提交返回 `421` = 队列已满（命令内已做退避重试）。
+原则：每个新功能从最新 `main` 创建独立分支，功能完成后形成清晰 commit，推送到 GitHub；合并前把功能分支 rebase 到最新 `main`，再合并回 `main`。
 
-## 约定
+开始新功能前先检查工作区：
 
-- 用 **uv** 管理与安装；editable 安装下改 `src/rh_cli/` 即时生效。
-- **绝不**把 API Key、代理密码打印到日志或提交到 git（`.gitignore` 已忽略 `.env`、`config.json` 等）。
-- 想把新功能贡献回上游：从当前分支向 `HM-RunningHub/RH_CLI` 提 PR。
+```bash
+git status --short
+git switch main
+git pull --ff-only origin main
+git switch -c codex/<short-name>
+```
+
+如果工作区有未完成改动，不能擅自覆盖、丢弃或混入新功能；应先确认这些改动归属，必要时由用户决定如何处理。
+
+功能完成后，只提交本功能相关文件：
+
+```bash
+git status --short
+git add <related-files>
+git diff --cached --check
+git commit -m "feat(web): <简短描述>"
+git push -u origin codex/<short-name>
+```
+
+合并前同步 `main` 并 rebase：
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch codex/<short-name>
+git rebase main
+git push --force-with-lease origin codex/<short-name>
+```
+
+确认测试和差异后合并回 `main` 并推送：
+
+```bash
+git switch main
+git merge --ff-only codex/<short-name>
+git push origin main
+```
+
+rebase 遇到冲突时，只解决当前功能与最新 `main` 的冲突；解决后运行 `git add` 和 `git rebase --continue`，不要使用破坏性重置命令。`--force-with-lease` 只用于 rebase 后更新功能分支，避免覆盖远端其他人的提交。
+
+完成合并后应核对：
+
+- `git status --short` 没有意外文件。
+- `git log --oneline --decorate -n 5` 显示预期 commit。
+- 相关测试、脚本语法检查和 `git diff --check` 通过。
+- GitHub 远端分支和 `main` 的 SHA 与本地预期一致。
+
+除非用户明确要求，不要自动删除功能分支、修改其他分支、同步上游或提交与当前功能无关的脏改动。

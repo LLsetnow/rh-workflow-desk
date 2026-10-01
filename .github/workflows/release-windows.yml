@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,24 +33,23 @@ jobs:
           version: "0.11.25"
 
       - name: Install JavaScript dependencies
-        working-directory: web
         run: npm ci
 
       - name: Build Windows installer
         shell: pwsh
-        run: ./web/scripts/build-windows.ps1
+        run: ./scripts/build-windows.ps1
 
       - name: Verify release artifacts
         shell: pwsh
         run: |
-          $installer = @(Get-ChildItem web/dist -Filter "*.exe" -File)
+          $installer = @(Get-ChildItem dist -Filter "*.exe" -File)
           if ($installer.Length -ne 1) {
             throw "Expected exactly one Windows installer, found $($installer.Length)."
           }
           if ($installer.Length -le 0) {
             throw "Windows installer is empty."
           }
-          $checksums = Get-Item web/dist/SHA256SUMS.txt
+          $checksums = Get-Item dist/SHA256SUMS.txt
           if ($checksums.Length -le 0) {
             throw "SHA256SUMS.txt is empty."
           }
@@ -61,5 +60,5 @@ jobs:
           name: RH Workflow Desk ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            web/dist/*.exe
-            web/dist/SHA256SUMS.txt
+            dist/*.exe
+            dist/SHA256SUMS.txt
