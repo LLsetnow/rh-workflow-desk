@@ -923,7 +923,6 @@ def task_replay_input_config(
 def expose_unconfigured_local_file_inputs(
     workflow: dict[str, Any],
     config: dict[str, Any] | None,
-    workflow_path: Path,
 ) -> dict[str, Any] | None:
     """Expose hidden file inputs that need a local file or a user selection.
 
@@ -941,7 +940,6 @@ def expose_unconfigured_local_file_inputs(
         return normalized
 
     configured_ids = {str(item.get("id") or "") for item in normalized.get("items", [])}
-    workflow_root = Path(workflow_path).expanduser().parent
     additions: list[dict[str, Any]] = []
     for item in workflow_input_catalog(workflow):
         input_id = str(item.get("id") or "")
@@ -951,8 +949,6 @@ def expose_unconfigured_local_file_inputs(
         default_text = str(default_value or "").strip()
         default_path = Path(default_text).expanduser() if default_text else None
         is_local_default = not default_text or bool(default_path and default_path.is_absolute())
-        if default_text and default_path and not default_path.is_absolute():
-            is_local_default = (workflow_root / default_path).is_file()
         if not is_local_default:
             continue
         additions.append({
@@ -3391,7 +3387,6 @@ class LocalStore:
         visible_input_config = expose_unconfigured_local_file_inputs(
             workflow,
             record.get("input_config") if isinstance(record.get("input_config"), dict) else None,
-            path,
         )
         if visible_input_config is not None:
             visible_record["input_config"] = visible_input_config
@@ -6412,7 +6407,7 @@ class TaskManager:
         # A raw task-page import can carry a temporary input configuration from
         # the task page editor; library records continue to use their saved
         # configuration when the request does not provide one.
-        exposed_input_config = expose_unconfigured_local_file_inputs(workflow, saved_input_config, workflow_path)
+        exposed_input_config = expose_unconfigured_local_file_inputs(workflow, saved_input_config)
         normalized_input_config = (
             normalize_workflow_input_config(workflow, exposed_input_config)
             if (library_record or workflow_data is not None)
