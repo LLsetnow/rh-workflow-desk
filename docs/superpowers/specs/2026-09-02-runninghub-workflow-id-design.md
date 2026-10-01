@@ -23,7 +23,7 @@
 
 | 字段 | 示例 | 用途 |
 | --- | --- | --- |
-| `workflow_id` | `wf_a1b2c3d4e5f6` | 本地数据库和 `web/data/workflows` 中定位工作流文件 |
+| `workflow_id` | `wf_a1b2c3d4e5f6` | 本地数据库和 `data/workflows` 中定位工作流文件 |
 | `remote_workflow_id` | `123456789` | RunningHub API 提交时的远程工作流 ID |
 
 前端状态使用明确的 `remoteWorkflowId`，避免继续把本地 `workflow_id` 当作远程 ID。后端任务记录使用 `remote_workflow_id`，旧任务没有该字段时按空值兼容。

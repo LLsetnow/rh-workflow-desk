@@ -72,7 +72,7 @@ rh-workflow-desk/
 
 命令行子功能可从仓库根目录运行 `uv run rh --help`；独立安装使用 `uv tool install ./cli --editable --with socksio`。完整命令说明见 [CLI 文档](cli/README.md)。
 
-旧源码布局的 `web/data/` 已移动为 `data/`。现有本地 checkout 保留了忽略于 Git 的 `web/data` 符号链接，让历史记录中的旧绝对路径继续可读；新 checkout 直接使用 `data/`。已有 checkout 更新代码后，若根目录尚无 `data/`，应用会继续读取旧的 `web/data/`，保留已有历史与配置。安装包仍使用操作系统的用户数据目录。
+源码模式统一使用仓库根目录的 `data/`；设置 `RH_WORKFLOW_DESK_DATA_ROOT` 可指定其他数据目录。安装包仍使用操作系统的用户数据目录。
 
 ### 正式安装包
 

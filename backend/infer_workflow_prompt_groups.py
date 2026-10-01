@@ -19,9 +19,6 @@ from typing import Any
 from urllib.parse import quote
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
-LEGACY_DATA_ROOT = Path(__file__).resolve().parents[1] / "web" / "data"
-if not DEFAULT_DATA_ROOT.exists() and LEGACY_DATA_ROOT.is_dir():
-    DEFAULT_DATA_ROOT = LEGACY_DATA_ROOT
 DEFAULT_LIBRARY_PATH = Path.home() / "Documents" / "VideoMake" / "ref" / "prompt" / "library.json"
 
 

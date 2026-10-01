@@ -46,11 +46,7 @@ from .video_downloader import extract_social_video_url, social_video_platform, d
 
 WEB_ROOT = Path(__file__).resolve().parents[1]
 _DATA_ROOT_OVERRIDE = os.environ.get("RH_WORKFLOW_DESK_DATA_ROOT", "").strip()
-_DEFAULT_DATA_ROOT = WEB_ROOT / "data"
-_LEGACY_DATA_ROOT = WEB_ROOT / "web" / "data"
-if not _DEFAULT_DATA_ROOT.exists() and _LEGACY_DATA_ROOT.is_dir():
-    _DEFAULT_DATA_ROOT = _LEGACY_DATA_ROOT
-DATA_ROOT = Path(_DATA_ROOT_OVERRIDE).expanduser().resolve() if _DATA_ROOT_OVERRIDE else _DEFAULT_DATA_ROOT
+DATA_ROOT = Path(_DATA_ROOT_OVERRIDE).expanduser().resolve() if _DATA_ROOT_OVERRIDE else WEB_ROOT / "data"
 # A library workflow is a directory package.  Keep the singular directory
 # name separate from the historical ``workflows/<id>.json`` layout so the
 # store can migrate existing installations without making task snapshots

@@ -43,6 +43,3 @@ Thumbs.db
 # The local app keeps credentials, task history, cached inputs and outputs here.
 /data/
 node_modules/
-
-# Compatibility link for paths saved before the desktop app moved to the root.
-/web/
