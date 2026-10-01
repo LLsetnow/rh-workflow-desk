@@ -3279,7 +3279,9 @@
     try { project = selectedTaskProject(); }
     catch (error) { return showToast(error.message, true); }
     var workflowPayload = null;
-    if (appState.workflowDirty && appState.workflow) {
+    // History and imported snapshots can differ from the library even before
+    // an edit. Submit the loaded graph together with its input configuration.
+    if (appState.workflow) {
       try {
         workflowPayload = JSON.parse(JSON.stringify(appState.workflow));
         applyCustomInputValues(workflowPayload, values.customInputs);
