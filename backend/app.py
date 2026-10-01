@@ -920,6 +920,59 @@ def task_replay_input_config(
     )
 
 
+def expose_unconfigured_local_file_inputs(
+    workflow: dict[str, Any],
+    config: dict[str, Any] | None,
+    workflow_path: Path,
+) -> dict[str, Any] | None:
+    """Expose hidden file inputs that need a local file or a user selection.
+
+    A manual workflow configuration may intentionally keep remote filenames
+    fixed in the graph. Local paths and blank LoadImage inputs are different:
+    local paths must be uploaded, while blank inputs must be supplied or
+    bypassed before RunningHub can validate the workflow.
+    """
+    config = prune_workflow_input_config_for_workflow(workflow, config)
+    if not isinstance(config, dict) or str(config.get("mode") or "auto").strip().lower() != "manual":
+        return config
+
+    normalized = normalize_workflow_input_config(workflow, config)
+    if not normalized or normalized.get("mode") != "manual":
+        return normalized
+
+    configured_ids = {str(item.get("id") or "") for item in normalized.get("items", [])}
+    workflow_root = Path(workflow_path).expanduser().parent
+    additions: list[dict[str, Any]] = []
+    for item in workflow_input_catalog(workflow):
+        input_id = str(item.get("id") or "")
+        if item.get("kind") != "file" or not input_id or input_id in configured_ids:
+            continue
+        default_value = item.get("default_value", item.get("default"))
+        default_text = str(default_value or "").strip()
+        default_path = Path(default_text).expanduser() if default_text else None
+        is_local_default = not default_text or bool(default_path and default_path.is_absolute())
+        if default_text and default_path and not default_path.is_absolute():
+            is_local_default = (workflow_root / default_path).is_file()
+        if not is_local_default:
+            continue
+        additions.append({
+            "id": input_id,
+            "node_id": str(item.get("node_id") or ""),
+            "field": str(item.get("field") or ""),
+            "title": str(item.get("title") or item.get("class_type") or input_id),
+            "class_type": str(item.get("class_type") or ""),
+            "label": str(item.get("label") or item.get("title") or input_id),
+            "kind": "file",
+            "required": not bool(default_text),
+        })
+    if not additions:
+        return normalized
+    return normalize_workflow_input_config(
+        workflow,
+        {**normalized, "items": [*normalized["items"], *additions]},
+    )
+
+
 def apply_workflow_input_defaults(workflow: dict[str, Any], defaults: Any) -> None:
     """Write editable scalar input defaults back into a workflow JSON object."""
     if defaults is None:
@@ -3334,8 +3387,16 @@ class LocalStore:
             raise RhCliError("INVALID_WORKFLOW", "工作流顶层必须是 API 格式节点字典。")
         analysis = inspect_workflow(workflow)
         analysis["input_catalog"] = workflow_input_catalog(workflow, analysis)
+        visible_record = dict(record)
+        visible_input_config = expose_unconfigured_local_file_inputs(
+            workflow,
+            record.get("input_config") if isinstance(record.get("input_config"), dict) else None,
+            path,
+        )
+        if visible_input_config is not None:
+            visible_record["input_config"] = visible_input_config
         return {
-            "record": record,
+            "record": visible_record,
             "workflow": workflow,
             "analysis": analysis,
             "prompt_group": self._read_workflow_prompt_group(workflow_id),
@@ -6351,7 +6412,12 @@ class TaskManager:
         # A raw task-page import can carry a temporary input configuration from
         # the task page editor; library records continue to use their saved
         # configuration when the request does not provide one.
-        normalized_input_config = normalize_workflow_input_config(workflow, saved_input_config) if (library_record or workflow_data is not None) else None
+        exposed_input_config = expose_unconfigured_local_file_inputs(workflow, saved_input_config, workflow_path)
+        normalized_input_config = (
+            normalize_workflow_input_config(workflow, exposed_input_config)
+            if (library_record or workflow_data is not None)
+            else None
+        )
         analysis = configured_workflow_analysis(workflow, normalized_input_config)
         normalized_custom_inputs = normalize_custom_input_values(workflow, analysis, custom_inputs)
         remote_id = str(remote_workflow_id or "").strip() or analysis.get("remote_workflow_id", "")
@@ -6393,8 +6459,13 @@ class TaskManager:
         missing = sorted(item for item in required if not str(files.get(item, "")).strip())
         if missing:
             raise RhCliError("MISSING_INPUT", "请为所有检测到的文件输入选择本地文件。", detail={"inputs": missing})
-        for item_id in required:
-            path = Path(str(files[item_id])).expanduser()
+        for item in analysis["file_inputs"]:
+            item_id = str(item.get("id") or "").strip()
+            node_id = str(item.get("node_id") or "").strip()
+            value = str(files.get(item_id) or "").strip()
+            if not item_id or node_id in bypassed_set or not value:
+                continue
+            path = Path(value).expanduser()
             if not path.exists() or not path.is_file():
                 raise RhCliError("FILE_NOT_FOUND", f"本地输入文件不存在：{path}")
         if key_id and not self.store.get_key(key_id):
