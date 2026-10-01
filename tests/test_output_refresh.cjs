@@ -85,16 +85,20 @@ function setup(count, page = 1) {
 
 test("artifact card title prefers the artifact stem and falls back to the workflow stem", () => {
   const { api } = setup(0);
-  assert.equal(api.artifactCardDisplayName({ name: "output_1.mp4", task_name: "workflow_api.json" }), "output_1");
+  assert.equal(api.artifactCardDisplayName({ name: "output_1.mp4", task_name: "workflow_api.json" }), "workflow_api");
+  assert.equal(api.artifactCardDisplayName({ name: "OUTPUT_1.png", task_name: "workflow_api.json" }), "workflow_api");
+  assert.equal(api.artifactCardDisplayName({ name: "output_2.mp4", task_name: "workflow_api.json" }), "output_2");
+  assert.equal(api.artifactCardDisplayName({ name: "result.mp4", task_name: "workflow_api.json" }), "result");
   assert.equal(api.artifactCardDisplayName({ name: "", task_name: "workflow_api.json" }), "workflow_api");
   assert.equal(api.artifactCardDisplayName({ name: "", workflow_name: "preferred.json", task_name: "other.json" }), "preferred");
   assert.equal(api.artifactCardDisplayName({ name: "no-extension", task_name: "workflow_api.json" }), "no-extension");
+  assert.equal(api.artifactCardDisplayName({ name: "output_1.mp4" }), "output_1");
   const markup = api.artifactCardMarkup({
     id: "task:file:0", task_id: "task", kind: "file", display_type: "image", name: "output_1.mp4",
     task_name: "workflow_api.json", tags: [], rating: 0,
   }, 0);
-  assert.match(markup, /aria-label="放大查看 output_1"/);
-  assert.match(markup, /class="artifact-name" title="output_1">output_1<\/div>/);
+  assert.match(markup, /aria-label="放大查看 workflow_api"/);
+  assert.match(markup, /class="artifact-name" title="workflow_api">workflow_api<\/div>/);
 });
 
 test("tag exclusion removes only the selected card, fills the page and preserves media and focus", () => {

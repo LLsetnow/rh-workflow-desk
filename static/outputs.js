@@ -852,8 +852,10 @@
   function artifactCardDisplayName(item) {
     var artifactName = String(item && item.name || "").trim();
     var workflowName = String(item && (item.workflow_name || item.task_name) || "").trim();
-    var displayName = artifactName || workflowName || "产物";
-    return outputFileNameParts(displayName).stem.trim() || "产物";
+    var artifactStem = outputFileNameParts(artifactName).stem.trim();
+    var workflowStem = outputFileNameParts(workflowName).stem.trim();
+    var isGenericArtifactName = artifactStem.toLowerCase() === "output_1";
+    return (!artifactStem || isGenericArtifactName ? workflowStem || artifactStem : artifactStem) || "产物";
   }
   function refreshRatedArtifact(item) {
     var card = null;

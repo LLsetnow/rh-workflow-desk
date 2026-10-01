@@ -50,8 +50,8 @@ def test_output_card_titles_prefer_artifact_stem_and_fall_back_to_workflow_stem(
     helper = helper_match.group("body")
     assert 'String(item && item.name || "").trim()' in helper
     assert 'item.workflow_name || item.task_name' in helper
-    assert "artifactName || workflowName || \"产物\"" in helper
-    assert "outputFileNameParts(displayName).stem" in helper
+    assert 'artifactStem.toLowerCase() === "output_1"' in helper
+    assert "outputFileNameParts(workflowName).stem" in helper
 
     card_start = script.index("function artifactCardMarkup(item, index)")
     card_end = script.index("function outputsEmptyMarkup()", card_start)
