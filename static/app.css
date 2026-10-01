@@ -650,6 +650,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent-opaque); 
 .output-label { margin-bottom: 9px; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; }
 .output-item img, .output-item video { display: block; width: 100%; max-height: 460px; border-radius: 9px; background: var(--surface-media); object-fit: contain; }
 .output-item audio { width: 100%; }
+.output-text-preview { display: grid; gap: 10px; }
 .video-player { display: flex; width: 100%; min-width: 0; min-height: 0; flex-direction: column; gap: 8px; }
 .video-player-controls { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 10px; }
 .video-player-controls .video-loop-toggle { align-self: center; margin-left: auto; }

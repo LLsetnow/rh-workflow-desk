@@ -1121,8 +1121,8 @@
   function poseMediaImportLabel(value) {
     return normalizePoseMediaImportType(value) === "skeleton" ? "骨骼图" : "深度图";
   }
-  function actionPoseImportInfo(action) {
-    var importType = normalizePoseMediaImportType(poseMediaImportType);
+  function actionPoseImportInfo(action, requestedType) {
+    var importType = requestedType == null ? normalizePoseMediaImportType(poseMediaImportType) : normalizePoseMediaImportType(requestedType);
     var skeleton = importType === "skeleton";
     var available = skeleton
       ? Boolean(action && (action.skeleton_image_available || action.skeletonImageUrl || action.skeletonImagePath))
@@ -3619,14 +3619,16 @@
           };
         });
       }
-      var poseImportInfo = actionPoseImportInfo(action);
-      return [{
-        label: "导入" + poseImportInfo.label,
-        title: poseImportInfo.available ? "选择 LoadImage 节点并导入" + poseImportInfo.label : "暂无可用" + poseImportInfo.label,
-        endpoint: "/api/prompt/actions/" + encodeURIComponent(action.id) + "/" + poseImportInfo.endpoint,
-        mediaKind: "image",
-        available: poseImportInfo.available,
-      }];
+      return ["depth", "skeleton"].map(function (type) {
+        var poseImportInfo = actionPoseImportInfo(action, type);
+        return {
+          label: "导入" + poseImportInfo.label,
+          title: poseImportInfo.available ? "选择 LoadImage 节点并导入" + poseImportInfo.label : "暂无可用" + poseImportInfo.label,
+          endpoint: "/api/prompt/actions/" + encodeURIComponent(action.id) + "/" + poseImportInfo.endpoint,
+          mediaKind: "image",
+          available: poseImportInfo.available,
+        };
+      });
     }
     if (target.kind === "reference") {
       var referenceEndpoint = "/api/prompt/references/" + encodeURIComponent(target.entry.id) + "/";

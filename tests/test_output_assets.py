@@ -5,6 +5,20 @@ from pathlib import Path
 STATIC_ROOT = Path(__file__).parents[1] / "static"
 
 
+def test_text_file_outputs_render_inline_and_keep_download_links():
+    script = (STATIC_ROOT / "outputs.js").read_text(encoding="utf-8")
+    styles = (STATIC_ROOT / "outputs.css").read_text(encoding="utf-8")
+
+    assert "function isTextOutputFile(item)" in script
+    assert "data-output-text-url" in script
+    assert "正在读取文本内容…" in script
+    assert "download=\"' + esc(item.name || \"output.txt\") + '\"" in script
+    assert "loadTextOutputPreviews($(\"outputGrid\"))" in script
+    assert "loadTextOutputPreviews($(\"outputPreviewContent\"))" in script
+    assert ".artifact-media-text .output-text-preview" in styles
+    assert ".output-preview-text .output-link" in styles
+
+
 def test_output_task_delete_removes_cards_without_reloading_the_grid():
     script = (STATIC_ROOT / "outputs.js").read_text(encoding="utf-8")
 

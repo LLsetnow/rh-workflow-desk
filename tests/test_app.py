@@ -1830,6 +1830,7 @@ def test_dashboard_counts_rolling_telegram_usage_and_money_spend(tmp_path, monke
         assert result["summary"]["submissions"] == 1
         assert result["summary"]["coins_spent"] == "0"
         assert result["summary"]["money_spent"] == [{"site": "ai", "symbol": "$", "value": "1.25"}]
+        assert result["recent"][0]["site"] == "ai"
         assert store.usage_records()[0]["site"] == "ai"
     finally:
         store._db.close()
@@ -3894,6 +3895,8 @@ def test_public_outputs_lists_available_files_and_text(tmp_path, monkeypatch):
         task_folder.mkdir(parents=True)
         image = task_folder / "preview.png"
         image.write_bytes(b"png")
+        text_file = task_folder / "result.txt"
+        text_file.write_text("file result", encoding="utf-8")
         store.update_task(
             task_id,
             status="completed",
@@ -3901,6 +3904,7 @@ def test_public_outputs_lists_available_files_and_text(tmp_path, monkeypatch):
             outputs_json=json.dumps(
                 [
                     {"kind": "file", "path": str(image), "name": image.name, "mime": "image/png"},
+                    {"kind": "file", "path": str(text_file), "name": text_file.name, "mime": "text/plain"},
                     {"kind": "text", "node_id": "3", "text": "result text"},
                     {"kind": "file", "path": str(tmp_path / "missing.mp4"), "name": "missing.mp4", "mime": "video/mp4"},
                 ],
@@ -3911,12 +3915,14 @@ def test_public_outputs_lists_available_files_and_text(tmp_path, monkeypatch):
         manager = SimpleNamespace(public_tasks=lambda: [store.task(task_id)])
         result = web_app.public_outputs(store, manager)
 
-        assert result["summary"]["total"] == 2
+        assert result["summary"]["total"] == 3
         assert result["summary"]["image"] == 1
-        assert result["summary"]["text"] == 1
-        assert result["summary"]["rating_counts"]["unrated"] == 2
-        assert [item["name"] for item in result["outputs"]] == ["preview.png", "文本输出 · 3"]
+        assert result["summary"]["text"] == 2
+        assert result["summary"]["rating_counts"]["unrated"] == 3
+        assert [item["name"] for item in result["outputs"]] == ["preview.png", "result.txt", "文本输出 · 3"]
         assert result["outputs"][0]["file_index"] == 0
+        assert result["outputs"][1]["display_type"] == "text"
+        assert result["outputs"][1]["file_index"] == 1
         assert {item["registered_workflow_id"] for item in result["outputs"]} == {registered_workflow_id}
         assert {item["account_id"] for item in result["outputs"]} == {"account-output"}
     finally:

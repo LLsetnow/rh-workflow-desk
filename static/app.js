@@ -118,6 +118,39 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char];
     });
   }
+  function isTextOutputFile(item) {
+    var mime = String(item && item.mime || "").split(";", 1)[0].trim().toLowerCase();
+    if (mime.indexOf("text/") === 0 || [
+      "application/ecmascript", "application/javascript", "application/json", "application/ld+json",
+      "application/rtf", "application/x-javascript", "application/x-sh", "application/x-subrip",
+      "application/x-yaml", "application/xml", "application/yaml"
+    ].indexOf(mime) !== -1) return true;
+    return /\.(bash|c|cfg|conf|cpp|cjs|css|csv|go|h|hpp|htm|html|ini|java|js|json|jsonl|log|mjs|md|markdown|ndjson|py|rb|rs|sh|sql|srt|toml|ts|tsx|tsv|txt|vtt|xml|yaml|yml|zsh)$/i.test(String(item && (item.name || item.path) || ""));
+  }
+  function textOutputPreviewMarkup(url, name) {
+    return '<div class="output-text-preview"><pre data-output-text-url="' + esc(url) + '">正在读取文本内容…</pre><a class="output-link" href="' + esc(url) + '" download="' + esc(name || "output.txt") + '">下载文件</a></div>';
+  }
+  function loadTextOutputPreviews(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-output-text-url]").forEach(function (pre) {
+      var url = pre.dataset && pre.dataset.outputTextUrl;
+      if (!url && typeof pre.getAttribute === "function") url = pre.getAttribute("data-output-text-url");
+      if (!url || pre.dataset.outputTextState) return;
+      pre.dataset.outputTextState = "loading";
+      fetch(url, { headers: { "Accept": "text/plain" } }).then(function (response) {
+        if (!response.ok) throw new Error("读取文本结果失败");
+        return response.text();
+      }).then(function (text) {
+        if (!pre.isConnected) return;
+        pre.textContent = text;
+        pre.dataset.outputTextState = "loaded";
+      }).catch(function () {
+        if (!pre.isConnected) return;
+        pre.textContent = "文本内容读取失败，请点击“下载文件”查看。";
+        pre.dataset.outputTextState = "error";
+      });
+    });
+  }
   function canonicalWorkflowName(value) {
     var name = String(value || "").split(/[\\/]/).pop().trim() || "workflow.json";
     name = name.replace(/^(?:(?:wf_)?[0-9a-f]{12}_)+/i, "");
@@ -671,6 +704,10 @@
     return "";
   }
 
+  function taskCostTitle(task) {
+    return window.RHCost ? window.RHCost.tooltip(task) : "";
+  }
+
   function formatTaskDuration(task) {
     var elapsed = Number(task && task.elapsed_ms);
     if (!isFinite(elapsed) || elapsed < 0) return "耗时 —";
@@ -808,7 +845,7 @@
         '<span class="task-status ' + statusClass + '">' + statusLabel(task.status) + '</span></div>' +
         '<div class="task-meta">' + taskMeta + '</div>' +
         '<div class="task-progress">' + progressMarkup + '</div>' +
-        '</div><div class="task-footer"><span class="task-footer-info"><span class="task-output-count">' + esc(outputLabel) + '</span>' + (costLabel ? '<span class="task-cost">' + esc(costLabel) + '</span>' : '') + '<span class="task-duration">' + esc(durationLabel) + '</span></span>' +
+        '</div><div class="task-footer"><span class="task-footer-info"><span class="task-output-count">' + esc(outputLabel) + '</span>' + (costLabel ? '<span class="task-cost" title="' + esc(taskCostTitle(task)) + '">' + esc(costLabel) + '</span>' : '') + '<span class="task-duration">' + esc(durationLabel) + '</span></span>' +
         '<span class="task-actions">' +
         (canCancel ? '<button type="button" data-action="cancel-task">取消</button>' : "") +
         (canDelete ? '<button type="button" data-action="delete-task">删除</button>' : "") + '</span></div></article>';
@@ -1412,6 +1449,50 @@
     return '<button class="input-media-delete" type="button" data-action="remove-media-input" data-input-id="' + esc(item.id) + '" data-node-id="' + esc(item.node_id) + '" title="删除这个媒体输入节点" aria-label="删除 ' + esc(item.title || item.id) + '">删除</button>';
   }
 
+  function isWorkflowNodeLink(value) {
+    if (!Array.isArray(value) || value.length !== 2) return false;
+    if (["string", "number"].indexOf(typeof value[0]) === -1) return false;
+    return typeof value[1] === "number" || /^\d+$/.test(String(value[1]));
+  }
+
+  function removeWorkflowNodeLinks(value, nodeId) {
+    if (isWorkflowNodeLink(value)) {
+      var matches = String(value[0]) === String(nodeId);
+      return { removed: matches, value: matches ? null : value };
+    }
+    if (!Array.isArray(value)) return { removed: false, value: value };
+    var removed = false;
+    var remaining = [];
+    value.forEach(function (entry) {
+      var result = removeWorkflowNodeLinks(entry, nodeId);
+      if (result.removed) {
+        removed = true;
+        if (result.value !== null) remaining.push(result.value);
+      } else {
+        remaining.push(entry);
+      }
+    });
+    return { removed: removed, value: remaining };
+  }
+
+  function disconnectMediaInputConnections(workflow, nodeId) {
+    var disconnected = [];
+    Object.keys(workflow || {}).forEach(function (consumerId) {
+      if (consumerId === String(nodeId) || consumerId === "__rh_meta__") return;
+      var consumer = workflow[consumerId];
+      var inputs = consumer && consumer.inputs && typeof consumer.inputs === "object" ? consumer.inputs : null;
+      if (!inputs) return;
+      Object.keys(inputs).forEach(function (field) {
+        var result = removeWorkflowNodeLinks(inputs[field], nodeId);
+        if (!result.removed) return;
+        if (result.value === null || (Array.isArray(result.value) && result.value.length === 0)) delete inputs[field];
+        else inputs[field] = result.value;
+        disconnected.push({ node_id: String(consumerId), field: String(field) });
+      });
+    });
+    return disconnected;
+  }
+
   function minimaxConditioningNodeIds(workflow) {
     return Object.keys(workflow || {}).filter(function (nodeId) {
       if (nodeId === "__rh_meta__") return false;
@@ -1434,6 +1515,51 @@
     var next = 0;
     while (used[String(next)]) next += 1;
     return prefix + next;
+  }
+
+  function qwenImage21NodeIds(workflow) {
+    return Object.keys(workflow || {}).filter(function (nodeId) {
+      if (nodeId === "__rh_meta__") return false;
+      var node = workflow[nodeId];
+      return String(node && node.class_type || "").toLowerCase().indexOf("textencodeqwenimage21") !== -1;
+    });
+  }
+
+  function nextQwenImage21ReferenceField(workflow, nodeId) {
+    var inputs = workflow && workflow[String(nodeId)] && workflow[String(nodeId)].inputs;
+    var highestIndex = 0;
+    Object.keys(inputs && typeof inputs === "object" ? inputs : {}).forEach(function (field) {
+      var match = /^images\.image_(\d+)$/.exec(field);
+      if (match) highestIndex = Math.max(highestIndex, Number(match[1]));
+    });
+    var next = Math.max(1, highestIndex + 1);
+    return next <= 16 ? "images.image_" + next : "";
+  }
+
+  function mediaInputConnectionTargets(workflow, kind) {
+    var targets = [];
+    var minimaxNodeIds = minimaxConditioningNodeIds(workflow);
+    if (minimaxNodeIds.length) {
+      targets.push({
+        type: "minimax",
+        nodeIds: minimaxNodeIds,
+        field: nextMinimaxReferenceField(workflow, kind, minimaxNodeIds),
+      });
+    }
+    if (kind === "image") {
+      qwenImage21NodeIds(workflow).forEach(function (nodeId) {
+        var field = nextQwenImage21ReferenceField(workflow, nodeId);
+        if (field) targets.push({ type: "qwen-image-21", nodeIds: [nodeId], field: field });
+      });
+    }
+    return targets;
+  }
+
+  function mediaInputConnectionTargetLabel(target) {
+    if (target.type === "qwen-image-21") {
+      return "Qwen Image 2.1 节点 " + target.nodeIds.join("、") + " 的 " + target.field;
+    }
+    return "MiniMax H3 节点的 " + target.field;
   }
 
   function refreshWorkflowAnalysis(previousValues, successMessage) {
@@ -1478,7 +1604,16 @@
     var kind = $("mediaInputType") ? $("mediaInputType").value : "image";
     var spec = mediaInputSpec(kind);
     var description = $("mediaInputTypeDescription");
-    if (description) description.textContent = spec.label + "会创建 " + spec.classType + " 节点，并自动接入第一个 MiniMax H3 节点的 " + (kind === "image" ? "ref_images" : (kind === "audio" ? "ref_audios" : "ref_videos")) + " 输入；没有 H3 节点时保留为独立媒体输入。";
+    if (!description) return;
+    var targets = mediaInputConnectionTargets(appState.workflow, kind);
+    if (targets.length) {
+      description.textContent = spec.label + "会创建 " + spec.classType + " 节点，并自动接入 " + targets.map(mediaInputConnectionTargetLabel).join("；") + "。";
+      return;
+    }
+    var hasQwenImage21 = kind === "image" && qwenImage21NodeIds(appState.workflow).length > 0;
+    description.textContent = hasQwenImage21
+      ? spec.label + "会创建 " + spec.classType + " 节点；Qwen Image 2.1 没有可用的参考图槽位，因此保留为独立媒体输入。"
+      : spec.label + "会创建 " + spec.classType + " 节点；当前工作流没有可接入的对应节点，因此保留为独立媒体输入。";
   }
 
   function openMediaInputModal() {
@@ -1509,17 +1644,20 @@
       class_type: spec.classType,
       _meta: { title: "媒体输入 · " + spec.label, rh_dynamic_media: true, rh_media_kind: kind }
     };
-    var minimaxNodeIds = minimaxConditioningNodeIds(appState.workflow);
-    var referenceField = minimaxNodeIds.length ? nextMinimaxReferenceField(appState.workflow, kind, minimaxNodeIds) : "";
-    if (referenceField) {
-      minimaxNodeIds.forEach(function (minimaxNodeId) {
-        appState.workflow[String(minimaxNodeId)].inputs[referenceField] = [nodeId, 0];
+    var connectionTargets = mediaInputConnectionTargets(appState.workflow, kind);
+    connectionTargets.forEach(function (target) {
+      target.nodeIds.forEach(function (targetNodeId) {
+        var targetNode = appState.workflow[String(targetNodeId)];
+        if (targetNode && targetNode.inputs && typeof targetNode.inputs === "object") {
+          targetNode.inputs[target.field] = [nodeId, 0];
+        }
       });
-    }
+    });
     updateMediaInputConfig({ id: nodeId + ":" + spec.field, node_id: nodeId, field: spec.field, title: "媒体输入 · " + spec.label, class_type: spec.classType }, false);
     appState.mediaInputBusy = true;
     window.RHMotion.closeModal("mediaInputModal");
-    refreshWorkflowAnalysis(values, "已添加" + spec.label + "输入节点 " + nodeId + (referenceField ? "，已接入 " + referenceField : ""))
+    var connectionSummary = connectionTargets.map(mediaInputConnectionTargetLabel).join("；");
+    refreshWorkflowAnalysis(values, "已添加" + spec.label + "输入节点 " + nodeId + (connectionSummary ? "，已接入 " + connectionSummary : "，已保留为独立媒体输入"))
       .catch(function (error) { showToast("添加媒体输入失败：" + error.message, true); })
       .finally(function () { appState.mediaInputBusy = false; });
   }
@@ -1528,24 +1666,17 @@
     if (appState.mediaInputBusy || !appState.workflow || !appState.workflow[String(nodeId)]) return;
     var node = appState.workflow[String(nodeId)];
     var title = String(node._meta && node._meta.title || node.class_type || ("节点 " + nodeId));
-    if (!window.confirm("删除「" + title + "」吗？相关 H3 引用连线也会一并移除。")) return;
+    if (!window.confirm("删除「" + title + "」吗？将自动断开它连接的下游节点。")) return;
     var values = collectInputs();
-    Object.keys(appState.workflow).forEach(function (otherId) {
-      if (otherId === String(nodeId) || otherId === "__rh_meta__") return;
-      var other = appState.workflow[otherId];
-      var inputs = other && other.inputs && typeof other.inputs === "object" ? other.inputs : {};
-      Object.keys(inputs).forEach(function (field) {
-        var link = inputs[field];
-        if (Array.isArray(link) && String(link[0]) === String(nodeId)) delete inputs[field];
-      });
-    });
+    var disconnected = disconnectMediaInputConnections(appState.workflow, nodeId);
     delete appState.workflow[String(nodeId)];
     delete appState.bypassedNodes[String(nodeId)];
     updateMediaInputConfig({ id: inputId || String(nodeId) + ":" + String(node.inputs && Object.keys(node.inputs)[0] || "") }, true);
     var preview = document.querySelector('.file-preview[data-preview-id="' + CSS.escape(String(inputId || "")) + '"]');
     if (preview) clearImagePreview(String(inputId));
     appState.mediaInputBusy = true;
-    refreshWorkflowAnalysis(values, "已删除媒体输入节点 " + nodeId)
+    var connectionMessage = disconnected.length ? "，已断开 " + disconnected.length + " 个下游连线" : "，未发现下游连线";
+    refreshWorkflowAnalysis(values, "已删除媒体输入节点 " + nodeId + connectionMessage)
       .catch(function (error) { showToast("删除媒体输入失败：" + error.message, true); })
       .finally(function () { appState.mediaInputBusy = false; });
   }
@@ -1814,6 +1945,7 @@
     if (editor.items.some(function (entry) { return entry.id === item.id; })) return showToast("这个输入字段已经添加", true);
     editor.items.push(workflowConfigItemFromCatalog(item));
     renderWorkflowConfigBuilder();
+    showToast("已添加输入字段：" + (item.node_id ? item.node_id + " · " : "") + (item.field || item.label || item.id));
   }
 
   function inputTitleMarkup(item, fallbackTitle) {
@@ -1853,7 +1985,7 @@
       html += '</div></div>';
     }
     if (appState.workflow) {
-      html += '<div class="media-input-toolbar"><div><strong>媒体输入</strong><span>图片、音频、视频都可以独立添加；有 MiniMax H3 节点时会自动接入对应参考槽。</span></div><button class="secondary-button button-compact media-input-add-button" type="button" data-action="add-media-input">＋ 添加媒体输入</button></div>';
+      html += '<div class="media-input-toolbar"><div><strong>媒体输入</strong><span>图片可接入 MiniMax H3 或 Qwen Image 2.1；音频和视频接入 MiniMax H3。没有兼容节点时会作为独立输入添加。</span></div><button class="secondary-button button-compact media-input-add-button" type="button" data-action="add-media-input">＋ 添加媒体输入</button></div>';
     }
     if (mediaFiles.length) {
       html += '<div class="section-kicker media-input-section-label">媒体输入 · 图片 / 音频 / 视频</div>';
@@ -3308,11 +3440,13 @@
         var content = type.indexOf("image/") === 0 ? '<img src="' + url + '" alt="' + esc(item.name) + '" />' :
           type.indexOf("video/") === 0 ? window.RHMotion.videoPlayerMarkup(url, false, false) :
           type.indexOf("audio/") === 0 ? '<audio src="' + url + '" controls preload="metadata"></audio>' :
+          isTextOutputFile(item) ? textOutputPreviewMarkup(url, item.name) :
           '<a class="output-link" href="' + url + '" target="_blank" rel="noreferrer">打开或下载文件</a>';
         return '<div class="output-item"><div class="output-label">' + esc(item.name || "output") + '</div>' + content + '</div>';
       }).join("");
       window.RHMotion.bindVideoLoopControls(outputs);
     }
+    loadTextOutputPreviews(outputs);
   }
 
   function renderTaskDetail(task, renderOutputs) {
@@ -3321,7 +3455,7 @@
     var costLabel = formatTaskCost(task);
     var toolboxTask = isToolboxTask(task);
     var detailWorkflowId = taskWorkflowId(task) || "未记录";
-    meta.innerHTML = '<span>' + statusLabel(task.status) + '</span><span>API Key：' + esc(taskCredentialLabel(task)) + '</span>' + (toolboxTask ? '' : '<span>机型：' + esc(taskInstanceLabel(task)) + '</span>') + '<span>workflowId：' + esc(detailWorkflowId) + '</span><span>taskId：' + esc(task.remote_task_id || "尚未返回") + '</span>' + (costLabel ? '<span>' + esc(costLabel) + '</span>' : '') + '<span>' + esc(formatTaskDuration(task)) + '</span><span>' + formatTime(task.created_at) + '</span>';
+    meta.innerHTML = '<span>' + statusLabel(task.status) + '</span><span>API Key：' + esc(taskCredentialLabel(task)) + '</span>' + (toolboxTask ? '' : '<span>机型：' + esc(taskInstanceLabel(task)) + '</span>') + '<span>workflowId：' + esc(detailWorkflowId) + '</span><span>taskId：' + esc(task.remote_task_id || "尚未返回") + '</span>' + (costLabel ? '<span title="' + esc(taskCostTitle(task)) + '">' + esc(costLabel) + '</span>' : '') + '<span>' + esc(formatTaskDuration(task)) + '</span><span>' + formatTime(task.created_at) + '</span>';
     renderDiagnostics(task);
     if (renderOutputs) renderTaskOutputs(task);
   }

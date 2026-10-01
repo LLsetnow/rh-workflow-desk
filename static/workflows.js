@@ -558,6 +558,7 @@
     if (editor.items.some(function (entry) { return entry.id === item.id; })) return showToast("这个输入字段已经添加", true);
     editor.items.push(configItemFromCatalog(item));
     renderConfigBuilder();
+    showToast("已添加输入字段：" + (item.node_id ? item.node_id + " · " : "") + (item.field || item.label || item.id));
   }
   function editorInputConfig() {
     var editor = state.configEditor;

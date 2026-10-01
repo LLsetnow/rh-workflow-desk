@@ -199,6 +199,33 @@ def test_page_loaders_show_progress_and_request_only_page_state():
     assert "translate3d(-24px, 0, 0)" in motion_css
 
 
+def test_task_and_output_costs_expose_rmb_hover_calculation():
+    pricing = (STATIC_ROOT / "pricing.js").read_text(encoding="utf-8")
+    app_script = (STATIC_ROOT / "app.js").read_text(encoding="utf-8")
+    outputs_script = (STATIC_ROOT / "outputs.js").read_text(encoding="utf-8")
+    for filename in ("index.html", "outputs.html"):
+        assert '/static/pricing.js' in (STATIC_ROOT / filename).read_text(encoding="utf-8")
+    assert "RH_COIN_BASE_PRICE_CNY = 0.00374" in pricing
+    assert "RH_COIN_MULTIPLIER = 0.44" in pricing
+    assert "USD_TO_CNY = 6.72245" in pricing
+    assert "taskCostTitle(task)" in app_script
+    assert 'class=\"task-cost\" title=\"' in app_script
+    assert "costTitle(item)" in outputs_script
+    assert 'class=\"artifact-cost\" title=\"' in outputs_script
+
+
+def test_dashboard_costs_expose_rmb_hover_calculation():
+    markup = (STATIC_ROOT / "dashboard.html").read_text(encoding="utf-8")
+    script = (STATIC_ROOT / "dashboard.js").read_text(encoding="utf-8")
+
+    assert '/static/pricing.js' in markup
+    assert "coinsCostTitle" in script
+    assert "moneySummaryTitle" in script
+    assert "coinsSpent.title" in script
+    assert "moneySpent.title" in script
+    assert 'class=\"dashboard-recent-stat\" title=\"' in script
+
+
 def test_settings_exposes_shortcut_and_color_reference():
     markup = (STATIC_ROOT / "settings.html").read_text(encoding="utf-8")
     script = (STATIC_ROOT / "settings.js").read_text(encoding="utf-8")
@@ -574,6 +601,17 @@ def test_task_detail_exposes_live_progress_and_refreshes_open_task():
     assert 'role="status"' in script
     assert "实时进度" in script
     assert ".stage-log-live.is-active" in styles
+
+
+def test_task_detail_renders_text_file_outputs_inline():
+    script = (STATIC_ROOT / "app.js").read_text(encoding="utf-8")
+    styles = (STATIC_ROOT / "app.css").read_text(encoding="utf-8")
+
+    assert "function isTextOutputFile(item)" in script
+    assert "function loadTextOutputPreviews(root)" in script
+    assert "textOutputPreviewMarkup(url, item.name)" in script
+    assert "data-output-text-url" in script
+    assert ".output-text-preview" in styles
 
 
 def test_global_page_navigation_shortcuts_are_wired_across_electron_and_pages():
@@ -963,6 +1001,7 @@ def test_telegram_submission_passes_workflow_prompt_group_to_task_snapshot():
 def test_task_submit_exposes_the_workflow_input_configuration_editor():
     markup = (STATIC_ROOT / "index.html").read_text(encoding="utf-8")
     script = (STATIC_ROOT / "app.js").read_text(encoding="utf-8")
+    workflows_script = (STATIC_ROOT / "workflows.js").read_text(encoding="utf-8")
     server = (BACKEND_ROOT / "server.py").read_text(encoding="utf-8")
     app_source = (BACKEND_ROOT / "app.py").read_text(encoding="utf-8")
 
@@ -977,6 +1016,8 @@ def test_task_submit_exposes_the_workflow_input_configuration_editor():
     assert "function renderWorkflowConfigBuilder()" in script
     assert "function prepareWorkflowConfigEditor()" in script
     assert "function workflowEditorConfigValue()" in script
+    assert 'showToast("已添加输入字段："' in script
+    assert 'showToast("已添加输入字段："' in workflows_script
     assert "appState.workflowInputConfig = config;" in script
     assert 'analysis["input_catalog"] = workflow_input_catalog(saved_workflow, analysis)' in server
     assert '"input_catalog": workflow_input_catalog(workflow)' in app_source
@@ -1029,6 +1070,9 @@ def test_action_cards_move_media_import_into_context_panel():
     assert 'aria-label="媒体库操作"' in markup
     assert 'data-library-context-actions' in markup
     assert "function libraryContextImportItems(target)" in script
+    assert 'return ["depth", "skeleton"].map(function (type)' in script
+    assert "actionPoseImportInfo(action, type)" in script
+    assert 'label: "导入" + poseImportInfo.label' in script
     assert "openLibraryImageContextMenu(event, card)" in script
     assert "data-library-context-import" in script
     assert "暂无可用" in script

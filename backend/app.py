@@ -128,8 +128,71 @@ VIDEO_OUTPUT_SUFFIXES = {
     ".webm",
     ".wmv",
 }
+TEXT_OUTPUT_SUFFIXES = {
+    ".bash",
+    ".c",
+    ".cfg",
+    ".conf",
+    ".cpp",
+    ".cjs",
+    ".css",
+    ".csv",
+    ".go",
+    ".h",
+    ".hpp",
+    ".htm",
+    ".html",
+    ".ini",
+    ".java",
+    ".js",
+    ".json",
+    ".jsonl",
+    ".log",
+    ".mjs",
+    ".md",
+    ".markdown",
+    ".ndjson",
+    ".py",
+    ".rb",
+    ".rs",
+    ".sh",
+    ".sql",
+    ".srt",
+    ".toml",
+    ".ts",
+    ".tsx",
+    ".tsv",
+    ".txt",
+    ".vtt",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".zsh",
+}
+TEXT_OUTPUT_MIMES = {
+    "application/ecmascript",
+    "application/javascript",
+    "application/json",
+    "application/ld+json",
+    "application/rtf",
+    "application/x-javascript",
+    "application/x-sh",
+    "application/x-subrip",
+    "application/x-yaml",
+    "application/xml",
+    "application/yaml",
+}
 VIDEO_TRANSCODE_SUBDIR = "input-transcoded"
 VIDEO_TRANSCODE_TIMEOUT_SECONDS = 600
+
+
+def is_text_output_file(path: Path | str, mime: str = "") -> bool:
+    """Return whether a saved file can be safely displayed as plain text."""
+    normalized_mime = str(mime or "").split(";", 1)[0].strip().lower()
+    if normalized_mime.startswith("text/") or normalized_mime in TEXT_OUTPUT_MIMES:
+        return True
+    return Path(str(path)).suffix.lower() in TEXT_OUTPUT_SUFFIXES
+
 
 TOOLBOX_WORKFLOW_IDS = {
     "codex": "toolbox.codex-image",
@@ -826,6 +889,39 @@ def prune_workflow_input_config_for_workflow(
     if len(kept) == len(raw_items):
         return config
     return {**config, "items": kept}
+
+
+def task_replay_input_config(
+    workflow: dict[str, Any], config: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Make every file input in a task snapshot available when replaying it.
+
+    Older task snapshots can contain media nodes that were not included in
+    the workflow's manual input configuration. Keep the configured inputs,
+    but expose those omitted file inputs so the replay can provide local files
+    for every media node still connected in the saved graph.
+    """
+    config = prune_workflow_input_config_for_workflow(workflow, config)
+    if not isinstance(config, dict) or str(config.get("mode") or "auto").strip().lower() != "manual":
+        return config
+
+    normalized = normalize_workflow_input_config(workflow, config)
+    if not normalized or normalized.get("mode") != "manual":
+        return normalized
+
+    configured_ids = {str(item.get("id") or "") for item in normalized.get("items", [])}
+    catalog = {str(item.get("id") or ""): item for item in workflow_input_catalog(workflow)}
+    missing_file_inputs = [
+        item for item in catalog.values()
+        if item.get("kind") == "file" and str(item.get("id") or "") not in configured_ids
+    ]
+    if not missing_file_inputs:
+        return normalized
+
+    return normalize_workflow_input_config(
+        workflow,
+        {**normalized, "items": [*normalized["items"], *missing_file_inputs]},
+    )
 
 
 def apply_workflow_input_defaults(workflow: dict[str, Any], defaults: Any) -> None:
@@ -4255,14 +4351,15 @@ class LocalStore:
         if task_changes:
             self.update_task(task_id, **task_changes)
             task = self.task(task_id) or task
+        replay_input_config = task_replay_input_config(workflow, task.get("input_config"))
         return {
             "workflow_id": saved_workflow_id,
             "filename": task.get("workflow_name") or workflow_path.name,
             "workflow_path": str(workflow_path),
             "workflow": workflow,
-            "analysis": configured_workflow_analysis(workflow, task.get("input_config")),
+            "analysis": configured_workflow_analysis(workflow, replay_input_config),
             "input_catalog": workflow_input_catalog(workflow),
-            "input_config": task.get("input_config"),
+            "input_config": replay_input_config,
             "prompt_group": prompt_group,
             "prompt_group_snapshot_path": str(self.task_prompt_group_snapshot_path(task)) if prompt_group else "",
             "manifest_path": str(self.task_manifest_path(task)) if manifest_path.is_file() else "",
@@ -7822,6 +7919,7 @@ def public_dashboard(
             "created_at": int(record.get("created_at") or 0),
             "status": str(record.get("status") or ""),
             "workflow_name": str(record.get("workflow_name") or "未命名工作流"),
+            "site": _usage_record_site(record, account_by_id),
             "cost_type": str(record.get("cost_type") or ""),
             "cost": str(record.get("cost") or ""),
             "duration_seconds": _format_metric(_usage_duration_seconds(record, now)),
@@ -8118,6 +8216,7 @@ def public_outputs(
         task_workflow_id = str(task.get("workflow_id") or task.get("remote_workflow_id") or task.get("local_workflow_id") or "").strip()
         registered_workflow_id = _dashboard_registered_workflow_id(task, registered_workflows)
         account_id = str(task.get("account_id") or "").strip()
+        key_site = str(task.get("dispatch_key_site") or task.get("key_site") or "").strip()
         project_id = str(task.get("project_id") or "").strip()
         project_name = str(task.get("project_name") or "").strip()
         project_path = str(task.get("project_path") or "").strip()
@@ -8162,6 +8261,7 @@ def public_outputs(
                         "rating": rating,
                         "tags": tags,
                         "task_name": str(task.get("workflow_name") or task_id),
+                        "key_site": key_site,
                         "feature": feature,
                         "feature_tag": feature_tag,
                         "task_status": str(task.get("status") or ""),
@@ -8196,6 +8296,8 @@ def public_outputs(
                 display_type = "video"
             elif mime.startswith("audio/"):
                 display_type = "audio"
+            elif is_text_output_file(file_path, mime):
+                display_type = "text"
             else:
                 display_type = "other"
             type_counts[display_type] += 1
@@ -8224,6 +8326,7 @@ def public_outputs(
                     "rating": rating,
                     "tags": tags,
                     "task_name": str(task.get("workflow_name") or task_id),
+                    "key_site": key_site,
                     "feature": feature,
                     "feature_tag": feature_tag,
                     "task_status": str(task.get("status") or ""),

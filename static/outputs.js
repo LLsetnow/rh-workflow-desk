@@ -483,7 +483,11 @@
   }
   function costLabel(item) {
     if (!item.cost) return "";
-    return item.cost_type === "money" ? "$" + item.cost : "消耗 " + item.cost + " RH 币";
+    if (item.cost_type === "money") return (window.RHCost ? window.RHCost.moneySymbol(item) : "$") + item.cost;
+    return "消耗 " + item.cost + " RH 币";
+  }
+  function costTitle(item) {
+    return window.RHCost ? window.RHCost.tooltip(item) : "";
   }
   function updateFilterSlider() {
     var container = $("outputFilters");
@@ -497,6 +501,42 @@
   }
   function outputUrl(item) {
     return "/api/tasks/" + encodeURIComponent(item.task_id) + "/output/" + encodeURIComponent(item.file_index);
+  }
+  function isTextOutputFile(item) {
+    var mime = String(item && item.mime || "").split(";", 1)[0].trim().toLowerCase();
+    var displayType = String(item && item.display_type || "").toLowerCase();
+    if (["image", "video", "audio"].indexOf(displayType) !== -1) return false;
+    if (displayType === "text" || mime.indexOf("text/") === 0 || [
+      "application/ecmascript", "application/javascript", "application/json", "application/ld+json",
+      "application/rtf", "application/x-javascript", "application/x-sh", "application/x-subrip",
+      "application/x-yaml", "application/xml", "application/yaml"
+    ].indexOf(mime) !== -1) return true;
+    return /\.(bash|c|cfg|conf|cpp|cjs|css|csv|go|h|hpp|htm|html|ini|java|js|json|jsonl|log|mjs|md|markdown|ndjson|py|rb|rs|sh|sql|srt|toml|ts|tsx|tsv|txt|vtt|xml|yaml|yml|zsh)$/i.test(String(item && item.name || ""));
+  }
+  function textOutputPreviewMarkup(item, className) {
+    var url = outputUrl(item);
+    return '<div class="' + className + '"><pre data-output-text-url="' + esc(url) + '">正在读取文本内容…</pre><a class="output-link" href="' + esc(url) + '" download="' + esc(item.name || "output.txt") + '">下载文件</a></div>';
+  }
+  function loadTextOutputPreviews(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-output-text-url]").forEach(function (pre) {
+      var url = pre.dataset && pre.dataset.outputTextUrl;
+      if (!url && typeof pre.getAttribute === "function") url = pre.getAttribute("data-output-text-url");
+      if (!url || pre.dataset.outputTextState) return;
+      pre.dataset.outputTextState = "loading";
+      fetch(url, { headers: { "Accept": "text/plain" } }).then(function (response) {
+        if (!response.ok) throw new Error("读取文本结果失败");
+        return response.text();
+      }).then(function (text) {
+        if (!pre.isConnected) return;
+        pre.textContent = text;
+        pre.dataset.outputTextState = "loaded";
+      }).catch(function () {
+        if (!pre.isConnected) return;
+        pre.textContent = "文本内容读取失败，请点击“下载文件”查看。";
+        pre.dataset.outputTextState = "error";
+      });
+    });
   }
   function filteredOutputs() {
     var query = state.search.trim().toLowerCase();
@@ -668,6 +708,7 @@
     if (item.kind === "text") {
       return '<div class="artifact-media artifact-media-text"><pre>' + esc(item.text || "") + "</pre></div>";
     }
+    if (isTextOutputFile(item)) return textOutputPreviewMarkup(item, "artifact-media artifact-media-text");
     var url = outputUrl(item);
     if (item.display_type === "image") {
       return '<div class="artifact-media"><img src="' + url + '" alt="' + esc(item.name) + '" loading="lazy" /></div>';
@@ -685,6 +726,7 @@
   }
   function previewMediaMarkup(item) {
     if (item.kind === "text") return '<div class="output-preview-text"><pre>' + esc(item.text || "") + '</pre></div><div class="output-preview-controls output-preview-controls-standalone">' + previewRatingMarkup(item) + '</div>';
+    if (isTextOutputFile(item)) return textOutputPreviewMarkup(item, "output-preview-text") + '<div class="output-preview-controls output-preview-controls-standalone">' + previewRatingMarkup(item) + '</div>';
     var url = outputUrl(item);
     if (item.display_type === "video") return window.RHMotion.videoPlayerMarkup(url, true, true, previewRatingMarkup(item));
     var media = item.display_type === "image" ? '<img src="' + url + '" alt="' + esc(item.name) + '" />' : item.display_type === "audio" ? '<audio src="' + url + '" controls autoplay preload="metadata"></audio>' : '<div class="output-preview-other"><a class="output-link" href="' + url + '" target="_blank" rel="noreferrer">打开或下载文件</a></div>';
@@ -710,6 +752,7 @@
     $("outputPreviewTitle").textContent = item.name || "产物预览";
     $("outputPreviewMeta").innerHTML = '<span>' + esc(typeLabel(item.display_type)) + '</span><span>任务：' + esc(item.task_name || item.task_id || "当前任务") + '</span><span>' + esc(formatTime(item.modified_at || item.task_completed_at || item.task_created_at)) + '</span>' + (item.kind === "file" ? '<span>' + esc(formatSize(item.size)) + '</span>' : '');
     $("outputPreviewContent").innerHTML = previewMediaMarkup(item);
+    loadTextOutputPreviews($("outputPreviewContent"));
     window.RHMotion.bindVideoLoopControls($("outputPreviewContent"));
     window.RHMotion.openModal("outputPreviewModal", "closeOutputPreview");
   }
@@ -2053,7 +2096,7 @@
     return '<article class="artifact-card' + (canCompare ? ' is-compare-draggable' : '') + (canProject ? ' is-project-draggable' : '') + '" data-task-id="' + esc(item.task_id) + '" data-artifact-id="' + esc(item.id) + '" data-compare-draggable="' + (canCompare ? 'true' : 'false') + '" data-project-draggable="' + (canProject ? 'true' : 'false') + '" draggable="' + (canDrag ? 'true' : 'false') + '" tabindex="0" role="button" aria-roledescription="' + dragDescription + '" aria-label="放大查看 ' + esc(item.name) + '" style="animation-delay:' + Math.min(index * 35, 350) + 'ms">' +
       artifactCardHeadMarkup(item) +
       mediaMarkup(item) +
-      '<div class="artifact-body"><div class="artifact-name-row"><div class="artifact-name" title="' + esc(item.name) + '">' + esc(item.name) + '</div>' + ratingStarsMarkup(item) + '</div><div class="artifact-task" title="点击工作流名称加载到任务提交页"><span class="artifact-task-prefix">任务 ·</span>' + taskWorkflowLabel(item) + taskIdLabel(item) + '</div><div class="artifact-foot"><div class="artifact-foot-info"><span>' + formatTime(item.modified_at || item.task_completed_at || item.task_created_at) + '</span>' + artifactResolutionMarkup(item) + artifactDurationMarkup(item) + '</div>' + (cost ? '<span class="artifact-cost">' + esc(cost) + '</span>' : '') + '</div></div>' +
+      '<div class="artifact-body"><div class="artifact-name-row"><div class="artifact-name" title="' + esc(item.name) + '">' + esc(item.name) + '</div>' + ratingStarsMarkup(item) + '</div><div class="artifact-task" title="点击工作流名称加载到任务提交页"><span class="artifact-task-prefix">任务 ·</span>' + taskWorkflowLabel(item) + taskIdLabel(item) + '</div><div class="artifact-foot"><div class="artifact-foot-info"><span>' + formatTime(item.modified_at || item.task_completed_at || item.task_created_at) + '</span>' + artifactResolutionMarkup(item) + artifactDurationMarkup(item) + '</div>' + (cost ? '<span class="artifact-cost" title="' + esc(costTitle(item)) + '">' + esc(cost) + '</span>' : '') + '</div></div>' +
       '</article>';
   }
   function outputsEmptyMarkup() {
@@ -2097,6 +2140,7 @@
       state.selectedArtifactId = replacement ? String(replacement.id) : "";
     }
     syncArtifactSelection(visibleItems);
+    loadTextOutputPreviews(grid);
     if (restoreFocus) {
       var focusedCard = selectedArtifactCard();
       if (focusedCard) focusedCard.focus({ preventScroll: true });
@@ -2121,6 +2165,7 @@
     var visibleItems = outputPageItems(items);
     $("outputGrid").innerHTML = visibleItems.map(artifactCardMarkup).join("");
     syncArtifactSelection(visibleItems);
+    loadTextOutputPreviews($("outputGrid"));
     window.RHMotion.bindVideoLoopControls($("outputGrid"));
     bindArtifactResolutionMetadata($("outputGrid"));
     renderPagination(items.length);
