@@ -172,11 +172,18 @@ def test_output_file_cards_can_import_into_a_task_file_input():
     assert 'data-artifact-menu-action="upload"' in page
     assert 'data-artifact-menu-action="import"' in page
     assert 'data-artifact-menu-action="open-folder"' in page
+    assert 'data-artifact-menu-action="rename"' in page
     assert 'data-artifact-menu-action="delete"' in page
+    assert 'id="outputFileRenameModal"' in page
+    assert 'id="outputFileName"' in page
     assert "handleArtifactContextMenu" in script
     assert "handleArtifactMenuAction" in script
     assert "openArtifactFolder" in script
+    assert "openOutputFileRename" in script
+    assert "submitOutputFileRename" in script
     assert "/open-folder" in script
+    assert 'JSON.stringify({ stem: stem })' in script
+    assert ".output-file-name-control" in styles
     assert ".artifact-context-menu" in styles
     assert ".artifact-import-task" not in script
 

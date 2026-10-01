@@ -2162,6 +2162,67 @@ def test_local_store_persists_output_tags_and_public_outputs_counts_them(tmp_pat
         store._db.close()
 
 
+def test_local_store_renames_result_files_and_rejects_invalid_names(tmp_path, monkeypatch):
+    _configure_web_paths(tmp_path, monkeypatch)
+    store = web_app.LocalStore()
+    task_id = "task_rename_file"
+    output_root = tmp_path / "data" / "outputs"
+    task_folder = output_root / task_id
+    task_folder.mkdir(parents=True)
+    original = task_folder / "output_1.mp4"
+    existing = task_folder / "already-used.mp4"
+    original.write_bytes(b"video")
+    existing.write_bytes(b"existing")
+    try:
+        store.create_task(
+            {
+                "id": task_id,
+                "created_at": 1,
+                "workflow_path": str(tmp_path / "workflow.json"),
+                "workflow_name": "workflow.json",
+                "files": {},
+                "prompts": {},
+                "random_noise": {},
+                "remote_workflow_id": "123456",
+                "output_dir": str(output_root),
+            }
+        )
+        store.update_task(
+            task_id,
+            outputs_json=json.dumps(
+                [
+                    {"kind": "file", "path": str(original), "name": original.name, "mime": "video/mp4"},
+                    {"kind": "text", "text": "finished"},
+                ]
+            ),
+        )
+
+        renamed = store.rename_output_file(task_id, 0, "final")
+
+        renamed_path = task_folder / "final.mp4"
+        assert not original.exists()
+        assert renamed_path.read_bytes() == b"video"
+        assert renamed["name"] == "final.mp4"
+        assert renamed["path"] == str(renamed_path)
+        assert store.task(task_id)["outputs"][0]["path"] == str(renamed_path)
+        public = web_app.public_outputs(store, SimpleNamespace(public_tasks=lambda: [store.task(task_id)]))
+        assert public["outputs"][0]["name"] == "final.mp4"
+
+        with pytest.raises(RhCliError) as excinfo:
+            store.rename_output_file(task_id, 0, "already-used")
+        assert excinfo.value.code == "OUTPUT_NAME_EXISTS"
+        with pytest.raises(RhCliError) as excinfo:
+            store.rename_output_file(task_id, 0, "../escape")
+        assert excinfo.value.code == "INVALID_OUTPUT_NAME"
+        with pytest.raises(RhCliError) as excinfo:
+            store.rename_output_file(task_id, 1, "other")
+        assert excinfo.value.code == "OUTPUT_NOT_FILE"
+        assert renamed_path.read_bytes() == b"video"
+        assert existing.read_bytes() == b"existing"
+    finally:
+        store._db.close()
+
+
 def test_delete_outputs_by_rating_removes_only_matching_outputs_and_preserves_ledger(tmp_path, monkeypatch):
     _configure_web_paths(tmp_path, monkeypatch)
     store = web_app.LocalStore()

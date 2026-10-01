@@ -2079,10 +2079,12 @@ class LocalHandler(BaseHTTPRequestHandler):
                 try:
                     output_index = int(parts[5])
                 except ValueError as exc:
-                    error_code = "INVALID_OUTPUT_TAGS" if "tags" in body else "INVALID_OUTPUT_RATING"
+                    error_code = "INVALID_OUTPUT_NAME" if "stem" in body else ("INVALID_OUTPUT_TAGS" if "tags" in body else "INVALID_OUTPUT_RATING")
                     raise RhCliError(error_code, "产物索引无效。") from exc
                 store, _ = self.state
-                if "tags" in body:
+                if "stem" in body:
+                    output = store.rename_output_file(task_id, output_index, body.get("stem"))
+                elif "tags" in body:
                     output = store.update_output_tags(task_id, output_index, body.get("tags"))
                 else:
                     output = store.update_output_rating(task_id, output_index, body.get("rating"))

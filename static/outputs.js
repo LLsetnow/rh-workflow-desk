@@ -20,6 +20,7 @@
   var multiSelectedArtifactIds = {};
   var projectEditor = { mode: "", projectId: "" };
   var projectDelete = { projectId: "" };
+  var outputFileRename = { item: null, busy: false };
   var draftStorageKey = "rh-workflow-desk-draft-v1";
   var pendingPromptGroupStorageKey = "rh-workflow-desk-pending-prompt-group-v1";
   var outputViewStateKey = "rh-workflow-desk-outputs-v1";
@@ -1313,6 +1314,7 @@
     var importAction = menu.querySelector('[data-artifact-menu-action="import"]');
     var folderAction = menu.querySelector('[data-artifact-menu-action="open-folder"]');
     var moveProjectAction = menu.querySelector('[data-artifact-menu-action="move-project"]');
+    var renameAction = menu.querySelector('[data-artifact-menu-action="rename"]');
     var canUpload = state.telegramConfigured && item.kind === "file";
     if (uploadAction) {
       var uploadBusy = Boolean(telegramUploadBusy[telegramUploadKey(item.task_id, item.output_index)]);
@@ -1326,6 +1328,7 @@
     if (importAction) importAction.hidden = item.kind !== "file";
     if (folderAction) folderAction.hidden = item.kind !== "file";
     if (moveProjectAction) moveProjectAction.hidden = !String(item.task_id || "").trim();
+    if (renameAction) renameAction.hidden = item.kind !== "file";
     menu.hidden = false;
     positionArtifactContextMenu(menu, event);
     var firstAction = menu.querySelector('button:not([hidden])');
@@ -1347,7 +1350,105 @@
     if (action === "import") openOutputImport(item, button);
     if (action === "open-folder") openArtifactFolder(item, button);
     if (action === "move-project") openOutputProjectMove(item);
+    if (action === "rename") openOutputFileRename(item);
     if (action === "delete") deleteArtifactTask(item, button);
+  }
+  function outputFileNameParts(name) {
+    var value = String(name || "");
+    var dot = value.lastIndexOf(".");
+    return dot > 0 ? { stem: value.slice(0, dot), extension: value.slice(dot) } : { stem: value, extension: "" };
+  }
+  function outputFileRenameIsOpen() {
+    var modal = $("outputFileRenameModal");
+    return Boolean(modal && !modal.hidden && modal.classList.contains("is-open"));
+  }
+  function openOutputFileRename(item) {
+    if (!item || item.kind !== "file") return;
+    var input = $("outputFileName");
+    var extension = $("outputFileExtension");
+    if (!input || !extension) return;
+    var parts = outputFileNameParts(item.name);
+    outputFileRename = { item: item, busy: false };
+    input.value = parts.stem;
+    input.disabled = false;
+    extension.textContent = parts.extension;
+    $("confirmOutputFileRename").disabled = false;
+    window.RHMotion.openModal("outputFileRenameModal", "closeOutputFileRename");
+    window.requestAnimationFrame(function () {
+      input.focus();
+      input.select();
+    });
+  }
+  function closeOutputFileRename() {
+    if (outputFileRename.busy) return;
+    outputFileRename = { item: null, busy: false };
+    window.RHMotion.closeModal("outputFileRenameModal");
+  }
+  function refreshRenamedArtifact(item) {
+    var card = artifactCardById(item && item.id);
+    if (card) {
+      var name = card.querySelector(".artifact-name");
+      if (name) {
+        name.textContent = String(item.name || "");
+        name.title = String(item.name || "");
+      }
+      card.setAttribute("aria-label", "放大查看 " + String(item.name || "产物"));
+      var image = card.querySelector("img");
+      if (image) image.alt = String(item.name || "");
+      card.querySelectorAll("a[download]").forEach(function (link) { link.download = String(item.name || ""); });
+    }
+    if (outputPreviewIsOpen() && String(state.selectedArtifactId) === String(item.id)) {
+      $("outputPreviewTitle").textContent = String(item.name || "产物预览");
+      var preview = $("outputPreviewContent");
+      if (preview) {
+        var imagePreview = preview.querySelector("img");
+        if (imagePreview) imagePreview.alt = String(item.name || "");
+        preview.querySelectorAll("a[download]").forEach(function (link) { link.download = String(item.name || ""); });
+      }
+    }
+    refreshFilteredArtifacts();
+  }
+  function submitOutputFileRename() {
+    var item = outputFileRename.item;
+    var input = $("outputFileName");
+    var button = $("confirmOutputFileRename");
+    if (!item || !input || !button || outputFileRename.busy) return;
+    var stem = String(input.value || "").trim();
+    if (!stem) {
+      input.focus();
+      return showToast("请输入文件名", true);
+    }
+    outputFileRename.busy = true;
+    input.disabled = true;
+    button.disabled = true;
+    button.textContent = "保存中…";
+    $("closeOutputFileRename").disabled = true;
+    $("cancelOutputFileRename").disabled = true;
+    request("/api/tasks/" + encodeURIComponent(item.task_id) + "/outputs/" + encodeURIComponent(item.output_index), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stem: stem })
+    }).then(function (data) {
+      var updated = data && data.output;
+      if (!updated || !updated.name) throw new Error("重命名结果文件失败");
+      item.name = String(updated.name);
+      if (updated.path) item.path = String(updated.path);
+      outputFileRename.busy = false;
+      closeOutputFileRename();
+      refreshRenamedArtifact(item);
+      showToast("结果文件已重命名");
+    }).catch(function (error) {
+      outputFileRename.busy = false;
+      showToast("重命名结果文件失败：" + error.message, true);
+      input.disabled = false;
+      input.focus();
+      input.select();
+    }).finally(function () {
+      button.disabled = false;
+      button.textContent = "保存名称";
+      $("closeOutputFileRename").disabled = false;
+      $("cancelOutputFileRename").disabled = false;
+    });
   }
   function openArtifactFolder(item, button) {
     var taskId = String(item && item.task_id || "").trim();
@@ -2032,13 +2133,14 @@
       return;
     }
     if (event.key === "Escape") {
-      var hasOverlay = outputPreviewIsOpen() || Boolean($("outputImportModal") && !$("outputImportModal").hidden) || Boolean($("telegramUploadModal") && !$("telegramUploadModal").hidden) || outputProjectMoveIsOpen() || outputProjectEditorIsOpen() || outputProjectDeleteIsOpen() || Boolean($("artifactContextMenu") && !$("artifactContextMenu").hidden) || Boolean($("outputProjectContextMenu") && !$("outputProjectContextMenu").hidden);
+      var hasOverlay = outputPreviewIsOpen() || Boolean($("outputImportModal") && !$("outputImportModal").hidden) || Boolean($("telegramUploadModal") && !$("telegramUploadModal").hidden) || outputProjectMoveIsOpen() || outputProjectEditorIsOpen() || outputProjectDeleteIsOpen() || outputFileRenameIsOpen() || Boolean($("artifactContextMenu") && !$("artifactContextMenu").hidden) || Boolean($("outputProjectContextMenu") && !$("outputProjectContextMenu").hidden);
       closeOutputPreview();
       closeOutputImport();
       closeTelegramUpload();
       closeOutputProjectMove();
       closeOutputProjectEditor();
       closeOutputProjectDelete();
+      closeOutputFileRename();
       closeArtifactContextMenu();
       closeOutputProjectContextMenu();
       if (hasOverlay) event.preventDefault();
@@ -2522,6 +2624,15 @@
       submitOutputProjectEditor();
     });
     $("outputProjectEditorModal").addEventListener("click", function (event) { if (event.target === $("outputProjectEditorModal")) closeOutputProjectEditor(); });
+    $("closeOutputFileRename").addEventListener("click", closeOutputFileRename);
+    $("cancelOutputFileRename").addEventListener("click", closeOutputFileRename);
+    $("confirmOutputFileRename").addEventListener("click", submitOutputFileRename);
+    $("outputFileName").addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      submitOutputFileRename();
+    });
+    $("outputFileRenameModal").addEventListener("click", function (event) { if (event.target === $("outputFileRenameModal")) closeOutputFileRename(); });
     $("closeOutputProjectDelete").addEventListener("click", closeOutputProjectDelete);
     $("cancelOutputProjectDelete").addEventListener("click", closeOutputProjectDelete);
     $("confirmOutputProjectDelete").addEventListener("click", confirmOutputProjectDelete);

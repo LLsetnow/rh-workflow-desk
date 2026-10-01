@@ -566,6 +566,65 @@ def test_output_case_tags_can_be_updated_over_http_and_are_counted(tmp_path, mon
         server.server_close()
 
 
+def test_output_file_can_be_renamed_over_http_and_keeps_its_extension(tmp_path, monkeypatch):
+    _configure_web_paths(tmp_path, monkeypatch)
+    task_id = "task_rename_http"
+    output_root = tmp_path / "outputs"
+    task_folder = output_root / task_id
+    task_folder.mkdir(parents=True)
+    original = task_folder / "output_1.mp4"
+    original.write_bytes(b"video")
+
+    server = web_server.AppServer(("127.0.0.1", 0))
+    server.store.create_task(
+        {
+            "id": task_id,
+            "created_at": 1,
+            "workflow_path": str(tmp_path / "workflow.json"),
+            "workflow_name": "workflow.json",
+            "files": {},
+            "prompts": {},
+            "random_noise": {},
+            "remote_workflow_id": "123456",
+            "output_dir": str(output_root),
+        }
+    )
+    server.store.update_task(
+        task_id,
+        outputs_json=json.dumps([{"kind": "file", "path": str(original), "mime": "video/mp4"}]),
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1])
+    try:
+        body = json.dumps({"stem": "final"}).encode("utf-8")
+        connection.request(
+            "PATCH",
+            f"/api/tasks/{task_id}/outputs/0",
+            body=body,
+            headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
+        )
+        response = connection.getresponse()
+        payload = json.loads(response.read())
+        renamed = task_folder / "final.mp4"
+        assert response.status == 200
+        assert payload["output"]["name"] == "final.mp4"
+        assert payload["output"]["path"] == str(renamed)
+        assert renamed.read_bytes() == b"video"
+        assert not original.exists()
+
+        connection.request("GET", "/api/outputs")
+        outputs_response = connection.getresponse()
+        outputs_payload = json.loads(outputs_response.read())
+        assert outputs_response.status == 200
+        assert outputs_payload["outputs"][0]["name"] == "final.mp4"
+    finally:
+        connection.close()
+        server.shutdown()
+        thread.join(timeout=1)
+        server.server_close()
+
+
 def test_local_video_preview_uses_a_streamed_range_endpoint(tmp_path, monkeypatch):
     _configure_web_paths(tmp_path, monkeypatch)
     source = tmp_path / "source.mp4"

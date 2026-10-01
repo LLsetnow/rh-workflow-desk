@@ -4665,6 +4665,99 @@ class LocalStore:
             self._db.commit()
             return dict(output)
 
+    def rename_output_file(self, task_id: str, output_index: int, stem: Any) -> dict[str, Any]:
+        try:
+            index = int(output_index)
+        except (TypeError, ValueError) as exc:
+            raise RhCliError("INVALID_OUTPUT_NAME", "产物索引无效。") from exc
+        new_stem = str(stem or "").strip()
+        if not new_stem or new_stem in {".", ".."}:
+            raise RhCliError("INVALID_OUTPUT_NAME", "请输入有效的文件名。")
+        if new_stem.startswith(".") or new_stem.endswith((".", " ")):
+            raise RhCliError("INVALID_OUTPUT_NAME", "文件名不能以点或空格开头或结尾。")
+        if any(ord(char) < 32 or char in '<>:"/\\|?*' for char in new_stem):
+            raise RhCliError("INVALID_OUTPUT_NAME", "文件名包含不支持的字符。")
+        reserved_names = {"CON", "PRN", "AUX", "NUL"}
+        reserved_names.update(f"COM{number}" for number in range(1, 10))
+        reserved_names.update(f"LPT{number}" for number in range(1, 10))
+        if new_stem.split(".", 1)[0].upper() in reserved_names:
+            raise RhCliError("INVALID_OUTPUT_NAME", "这个文件名不能用于本地文件。")
+
+        with self._lock:
+            row = self._db.execute("SELECT outputs_json, output_dir FROM tasks WHERE id=?", (task_id,)).fetchone()
+            if not row:
+                raise RhCliError("TASK_NOT_FOUND", "找不到任务。")
+            try:
+                outputs = json.loads(row["outputs_json"] or "[]")
+            except (TypeError, ValueError) as exc:
+                raise RhCliError("OUTPUT_NOT_FOUND", "任务产物记录无效。") from exc
+            if not isinstance(outputs, list) or index < 0 or index >= len(outputs) or not isinstance(outputs[index], dict):
+                raise RhCliError("OUTPUT_NOT_FOUND", "找不到这个产物。")
+            output = outputs[index]
+            if str(output.get("kind") or "file") != "file":
+                raise RhCliError("OUTPUT_NOT_FILE", "只有本地结果文件可以重命名。")
+
+            raw_path = str(output.get("path") or "").strip()
+            if not raw_path:
+                raise RhCliError("OUTPUT_NOT_FOUND", "找不到这个结果文件。")
+            source_path = Path(raw_path).expanduser()
+            if source_path.is_symlink():
+                raise RhCliError("OUTPUT_NOT_FOUND", "结果文件不在任务的本地输出目录中。")
+            try:
+                output_root = Path(str(row["output_dir"] or "")).expanduser().resolve()
+                task_folder = (output_root / str(task_id)).resolve()
+                source_path = source_path.resolve()
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise RhCliError("OUTPUT_NOT_FOUND", "结果文件不在任务的本地输出目录中。") from exc
+            if task_folder.parent != output_root or task_folder not in source_path.parents:
+                raise RhCliError("OUTPUT_NOT_FOUND", "结果文件不在任务的本地输出目录中。")
+            if not source_path.is_file():
+                raise RhCliError("OUTPUT_NOT_FOUND", "结果文件不存在。")
+
+            extension = source_path.suffix
+            new_name = new_stem + extension
+            try:
+                encoded_name = new_name.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise RhCliError("INVALID_OUTPUT_NAME", "文件名包含无效字符。") from exc
+            if len(encoded_name) > 255:
+                raise RhCliError("INVALID_OUTPUT_NAME", "文件名过长。")
+            destination = source_path.with_name(new_name)
+            if destination == source_path:
+                output["path"] = str(source_path)
+                output["name"] = new_name
+                self._db.execute(
+                    "UPDATE tasks SET outputs_json=?, updated_at=? WHERE id=?",
+                    (json.dumps(outputs, ensure_ascii=False), now_ms(), task_id),
+                )
+                self._db.commit()
+                return dict(output)
+            if os.path.lexists(destination):
+                raise RhCliError("OUTPUT_NAME_EXISTS", "同名结果文件已存在。")
+
+            moved = False
+            try:
+                source_path.rename(destination)
+                moved = True
+                output["path"] = str(destination)
+                output["name"] = new_name
+                self._db.execute(
+                    "UPDATE tasks SET outputs_json=?, updated_at=? WHERE id=?",
+                    (json.dumps(outputs, ensure_ascii=False), now_ms(), task_id),
+                )
+                self._db.commit()
+            except (OSError, sqlite3.Error) as exc:
+                self._db.rollback()
+                if moved and destination.exists() and not source_path.exists():
+                    try:
+                        destination.rename(source_path)
+                    except OSError:
+                        pass
+                if isinstance(exc, OSError):
+                    raise RhCliError("OUTPUT_RENAME_FAILED", "重命名结果文件失败，请检查文件是否正在使用。") from exc
+                raise RhCliError("OUTPUT_RENAME_FAILED", "保存结果文件名称失败。") from exc
+            return dict(output)
+
     def telegram_delivery_sent(self, task_id: str, delivery_key: str) -> bool:
         with self._lock:
             row = self._db.execute(

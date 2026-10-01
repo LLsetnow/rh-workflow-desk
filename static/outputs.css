@@ -259,10 +259,16 @@
 .output-project-move-copy strong { color: var(--ink); font-size: 11px; }
 .output-project-move-copy small, .output-project-move-copy span { min-width: 0; overflow-wrap: anywhere; color: var(--subtle); font-size: 9px; line-height: 1.45; }
 .output-project-move-copy span { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; }
-.output-project-editor-dialog, .output-project-delete-dialog { width: min(480px, 100%); }
+.output-project-editor-dialog, .output-project-delete-dialog, .output-file-rename-dialog { width: min(480px, 100%); }
 .output-project-name-field { display: grid; gap: 7px; margin-top: 16px; color: var(--muted); font-size: 10px; font-weight: 650; }
 .output-project-name-field input { width: 100%; min-height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface-deep); font: inherit; font-size: 12px; outline: none; transition: border-color var(--motion-interaction) ease, box-shadow var(--motion-interaction) ease; }
 .output-project-name-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ghost); }
+.output-file-name-field { display: grid; gap: 7px; margin-top: 16px; color: var(--muted); font-size: 10px; font-weight: 650; }
+.output-file-name-control { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.output-file-name-control input { flex: 1 1 auto; min-width: 0; min-height: var(--control-height); padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface-deep); font: inherit; font-size: var(--control-font-size); line-height: var(--control-line-height); outline: none; transition: border-color var(--motion-interaction) ease, box-shadow var(--motion-interaction) ease; }
+.output-file-name-control input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ghost); }
+.output-file-extension { flex: 0 0 auto; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; }
+.output-file-extension:empty { display: none; }
 .output-project-delete-dialog .danger-button { border-color: var(--danger-fill); color: var(--danger); background: var(--danger-ghost); }
 .output-project-delete-dialog .danger-button:hover:not(:disabled) { border-color: var(--danger-strong); background: var(--danger-soft); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
@@ -299,7 +305,7 @@
   .output-pagination { flex-wrap: wrap; gap: 8px; }
   .output-page-status { order: -1; width: 100%; text-align: center; }
   .artifact-media { height: 330px; min-height: 330px; }
-  .output-preview-dialog, .output-import-dialog, .telegram-upload-dialog, .output-project-move-dialog, .output-project-editor-dialog, .output-project-delete-dialog { max-height: calc(100vh - 24px); }
+  .output-preview-dialog, .output-import-dialog, .telegram-upload-dialog, .output-project-move-dialog, .output-project-editor-dialog, .output-project-delete-dialog, .output-file-rename-dialog { max-height: calc(100vh - 24px); }
   .output-preview-content { min-height: 48vh; padding: 10px; }
   .output-import-actions { flex-direction: column-reverse; }
   .output-import-actions button { width: 100%; justify-content: center; }

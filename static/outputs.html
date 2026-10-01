@@ -294,6 +294,29 @@
         </div>
       </section>
     </div>
+    <div id="outputFileRenameModal" class="modal-backdrop" hidden>
+      <section class="output-file-rename-dialog dialog-panel" role="dialog" aria-modal="true" aria-labelledby="outputFileRenameTitle">
+        <div class="modal-heading">
+          <div>
+            <div class="section-kicker">OUTPUT FILE</div>
+            <h2 id="outputFileRenameTitle">重命名结果文件</h2>
+          </div>
+          <button id="closeOutputFileRename" class="close-button" type="button" aria-label="关闭重命名结果文件">×</button>
+        </div>
+        <p class="modal-description">只修改本地结果文件的名称，文件内容和任务记录会保留。</p>
+        <label class="output-file-name-field" for="outputFileName">
+          <span>文件名</span>
+          <span class="output-file-name-control">
+            <input id="outputFileName" type="text" maxlength="255" autocomplete="off" spellcheck="false" aria-label="文件名，不含扩展名" aria-describedby="outputFileExtension" />
+            <span id="outputFileExtension" class="output-file-extension"></span>
+          </span>
+        </label>
+        <div class="output-import-actions">
+          <button id="cancelOutputFileRename" class="secondary-button" type="button">取消</button>
+          <button id="confirmOutputFileRename" class="primary-button" type="button">保存名称</button>
+        </div>
+      </section>
+    </div>
     <div id="outputProjectDeleteModal" class="modal-backdrop" hidden>
       <section class="output-project-delete-dialog dialog-panel" role="dialog" aria-modal="true" aria-labelledby="outputProjectDeleteTitle">
         <div class="modal-heading">
@@ -319,6 +342,7 @@
       <button type="button" role="menuitem" data-artifact-menu-action="import">导入媒体</button>
       <button type="button" role="menuitem" data-artifact-menu-action="open-folder">打开所在文件夹</button>
       <button type="button" role="menuitem" data-artifact-menu-action="move-project">移动到项目</button>
+      <button type="button" role="menuitem" data-artifact-menu-action="rename">重命名结果文件</button>
       <button type="button" role="menuitem" data-artifact-menu-action="delete">删除任务</button>
     </div>
     <script>window.RHMotion.startPageEnter();</script>
