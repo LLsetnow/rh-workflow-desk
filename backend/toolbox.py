@@ -4,7 +4,6 @@ import json
 import math
 import mimetypes
 import os
-import shlex
 import shutil
 import subprocess
 import tempfile
@@ -22,7 +21,6 @@ from .runtime_paths import depth_runtime_paths, skeleton_runtime_paths
 VIDEO_SUFFIXES = {".avi", ".flv", ".m4v", ".mkv", ".mov", ".mp4", ".webm", ".wmv"}
 IMAGE_SUFFIXES = {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
 TOOLBOX_MODES = {"depth", "skeleton", "depth_skeleton"}
-SUPPORTED_OUTPUT_SUFFIXES = VIDEO_SUFFIXES | IMAGE_SUFFIXES
 MEDIA_RESOLUTIONS = {"original", "480p", "720p", "1080p"}
 MEDIA_RESOLUTION_SHORT_EDGES = {"480p": 480, "720p": 720, "1080p": 1080}
 MEDIA_PROCESS_FPS = 24
@@ -48,17 +46,6 @@ CODEX_IMAGE_SIZES = {
     "9:21",
 }
 DEFAULT_MEDIA_ROOT = Path("/Users/apple/Documents/VideoMake/ref")
-DEFAULT_CODEX_IMAGE_COMMAND = (
-    "opc image generate {prompt} --engine gpt-image --resolution {resolution} --size {size} --output {output} "
-    "--no-enhance {reference_args}"
-)
-
-
-def default_codex_image_command() -> str:
-    """Return the internal image command; users do not configure this in the UI."""
-    return str(os.environ.get("RH_CODEX_IMAGE_COMMAND") or DEFAULT_CODEX_IMAGE_COMMAND).strip()
-
-
 def normalize_toolbox_mode(value: Any) -> str:
     mode = str(value or "").strip().lower()
     if mode not in TOOLBOX_MODES:
@@ -136,126 +123,91 @@ def validate_local_file(value: Any, *, label: str, suffixes: set[str] | None = N
     return path
 
 
-def expand_command_template(template: str, context: dict[str, Any]) -> list[str]:
-    """Expand a local CLI template without invoking a shell.
-
-    Exact ``{references}`` expands to one argument per reference. All other
-    placeholders are substituted inside their containing argument. This keeps
-    prompts and file paths as single argv values while still allowing a normal
-    command-line template such as ``tool --prompt {prompt} --out {output}``.
-    """
-    raw = str(template or "").strip()
-    if not raw:
-        raise RhCliError("TOOLBOX_COMMAND_MISSING", "请先填写本地 Codex 命令模板。")
-    try:
-        tokens = shlex.split(raw, posix=os.name != "nt")
-    except ValueError as exc:
-        raise RhCliError("TOOLBOX_COMMAND_INVALID", f"命令模板无法解析：{exc}") from exc
-    if not tokens:
-        raise RhCliError("TOOLBOX_COMMAND_MISSING", "请先填写本地 Codex 命令模板。")
-    if "{prompt}" not in raw or "{output}" not in raw:
-        raise RhCliError("TOOLBOX_COMMAND_INVALID", "命令模板必须包含 {prompt} 和 {output}。")
-
-    references = [str(item) for item in context.get("references", []) if str(item).strip()]
-    scalar_values = {
-        "prompt": str(context.get("prompt") or ""),
-        "output": str(context.get("output") or ""),
-        "input": str(context.get("input") or ""),
-        "mode": str(context.get("mode") or ""),
-        "model": str(context.get("model") or DEFAULT_CODEX_IMAGE_MODEL),
-        "resolution": str(context.get("resolution") or "1k"),
-        "size": str(context.get("size") or "9:16"),
-        "references_json": json.dumps(references, ensure_ascii=False),
-    }
-    expanded: list[str] = []
-    for token in tokens:
-        if token == "{reference_args}":
-            for reference in references:
-                expanded.extend(["--ref", reference])
-            continue
-        if token == "{references}":
-            if not references and expanded and expanded[-1] in {
-                "-r",
-                "--image",
-                "--images",
-                "--reference",
-                "--references",
-                "--refs",
-                "--ref",
-            }:
-                # A template such as ``--references {references}`` should not
-                # leave a dangling flag when the user intentionally supplied no
-                # reference images.
-                expanded.pop()
-            expanded.extend(references)
-            continue
-        value = token
-        for name, replacement in scalar_values.items():
-            value = value.replace("{" + name + "}", replacement)
-        for index, reference in enumerate(references, start=1):
-            value = value.replace("{reference_" + str(index) + "}", reference)
-        expanded.append(value)
-    return expanded
-
-
 def _command_error(result: subprocess.CompletedProcess[str], label: str) -> RhCliError:
     lines = (result.stderr or result.stdout or "").strip().splitlines()
     detail = "：" + lines[-1][:280] if lines else "。"
     return RhCliError("TOOLBOX_COMMAND_FAILED", f"{label}失败{detail}")
 
 
-def run_local_command(
-    template: str,
+def run_codex_image(
     context: dict[str, Any],
     *,
     cwd: Path,
     timeout: int = 3600,
     on_result: Callable[[subprocess.CompletedProcess[str]], None] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    command = expand_command_template(template, context)
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "RH_TOOLBOX_PROMPT": str(context.get("prompt") or ""),
-            "RH_TOOLBOX_INPUT": str(context.get("input") or ""),
-            "RH_TOOLBOX_OUTPUT": str(context.get("output") or ""),
-            "RH_TOOLBOX_REFERENCES": json.dumps(context.get("references", []), ensure_ascii=False),
-            "RH_TOOLBOX_MODE": str(context.get("mode") or ""),
-            "RH_TOOLBOX_IMAGE_MODEL": str(context.get("model") or DEFAULT_CODEX_IMAGE_MODEL),
-            "RH_TOOLBOX_RESOLUTION": str(context.get("resolution") or ""),
-            "RH_TOOLBOX_SIZE": str(context.get("size") or ""),
-        }
-    )
-    try:
-        result = subprocess.run(
-            command,
-            cwd=str(cwd),
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise RhCliError("TOOLBOX_COMMAND_NOT_FOUND", f"找不到本地命令：{command[0]}") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise RhCliError("TOOLBOX_COMMAND_TIMEOUT", "本地命令执行超时，请检查命令或缩短输入。") from exc
-    if on_result is not None:
-        on_result(result)
-    if result.returncode != 0:
-        raise _command_error(result, "本地 Codex 命令")
-    return result
+) -> list[Path]:
+    """Run the native image tool through Codex and require its final local file."""
+    configured_cli = str(os.environ.get("RH_CODEX_CLI_PATH") or "").strip()
+    candidates = [configured_cli] if configured_cli else ["codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
+    executable = next((path for candidate in candidates if (path := shutil.which(candidate))), None)
+    if executable is None:
+        raise RhCliError("TOOLBOX_COMMAND_NOT_FOUND", "找不到本地 codex CLI，请先安装并使用 ChatGPT 账号登录。")
 
-
-def find_generated_media(folder: Path, *, exclude: set[Path] | None = None) -> list[Path]:
-    excluded = {path.resolve() for path in (exclude or set())}
-    result = []
-    for path in folder.rglob("*"):
-        if not path.is_file() or path.resolve() in excluded or path.name.startswith("."):
-            continue
-        if path.suffix.lower() in SUPPORTED_OUTPUT_SUFFIXES:
-            result.append(path.resolve())
-    return sorted(result, key=lambda item: item.stat().st_mtime_ns)
+    cwd = cwd.resolve()
+    output = Path(str(context["output"])).resolve()
+    references = [str(path) for path in context.get("references", [])]
+    prompt = "\n".join([
+        "使用内置 image_gen 工具（image_gen__imagegen）生成一张图片，不要使用 OPC 或其他生成方式。",
+        "严格按用户要求生成；工具失败时直接报告失败，不要生成替代图片。",
+        f"图像模型要求：{context.get('model') or DEFAULT_CODEX_IMAGE_MODEL}",
+        f"分辨率要求：{context.get('resolution') or '1k'}",
+        f"画幅比例：{context.get('size') or '9:16'}",
+        f"参考图片：{len(references)} 张，已附在会话中；保留原文件，不要修改或复制参考图。",
+        "用户要求：",
+        str(context.get("prompt") or ""),
+        "",
+        f"将最终生成的图片保存为 PNG：{output}",
+        "只将生成结果写入以上路径，不要修改其他文件。",
+        '最后只输出一个 JSON 对象：{"image_path": "<最终图片的绝对路径>"}。',
+    ])
+    schema = {
+        "type": "object",
+        "properties": {"image_path": {"type": "string"}},
+        "required": ["image_path"],
+        "additionalProperties": False,
+    }
+    with tempfile.TemporaryDirectory(prefix=".codex-image-", dir=str(cwd)) as temp_dir:
+        schema_path = Path(temp_dir) / "schema.json"
+        response_path = Path(temp_dir) / "response.json"
+        schema_path.write_text(json.dumps(schema), encoding="utf-8")
+        command = [
+            executable, "exec", "--ignore-user-config", "--ephemeral",
+            "--skip-git-repo-check", "--sandbox", "workspace-write",
+            "-c", 'approval_policy="never"', "-C", str(cwd),
+            "--output-schema", str(schema_path), "--output-last-message", str(response_path),
+        ]
+        agent_model = str(os.environ.get("RH_CODEX_AGENT_MODEL") or "").strip()
+        if agent_model:
+            command.extend(["--model", agent_model])
+        # --image accepts multiple values, so the positional prompt must precede it.
+        command.append(prompt)
+        for reference in references:
+            command.extend(["--image", reference])
+        try:
+            result = subprocess.run(
+                command, cwd=str(cwd), stdin=subprocess.DEVNULL,
+                capture_output=True, text=True, timeout=timeout, check=False,
+            )
+        except FileNotFoundError as exc:
+            raise RhCliError("TOOLBOX_COMMAND_NOT_FOUND", "找不到本地 codex CLI。") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RhCliError("TOOLBOX_COMMAND_TIMEOUT", "本地 Codex 命令执行超时。") from exc
+        if on_result is not None:
+            on_result(result)
+        if result.returncode != 0:
+            raise _command_error(result, "本地 Codex 命令")
+        try:
+            response = json.loads(response_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise RhCliError("TOOLBOX_OUTPUT_MISSING", "Codex 未返回有效的最终图片路径。") from exc
+        returned_path = response.get("image_path") if isinstance(response, dict) else None
+        if not isinstance(returned_path, str) or not returned_path.strip():
+            raise RhCliError("TOOLBOX_OUTPUT_MISSING", "Codex 返回结果缺少最终图片路径。")
+        if not Path(returned_path).is_absolute() or Path(returned_path).resolve() != output:
+            raise RhCliError("TOOLBOX_OUTPUT_INVALID", "Codex 返回的图片路径与本次任务输出路径不一致。")
+        if not output.is_file() or output.stat().st_size == 0:
+            raise RhCliError("TOOLBOX_OUTPUT_MISSING", "Codex 已结束，但最终图片尚未保存或文件为空。")
+    return [output]
 
 
 def _runtime_root(configured_root: str | Path | None) -> Path:

@@ -40,9 +40,6 @@ from .toolbox import (
     MEDIA_PROCESS_FPS,
     TOOLBOX_MODES,
     VIDEO_SUFFIXES,
-    default_codex_image_command,
-    expand_command_template,
-    find_generated_media,
     normalize_codex_image_model,
     normalize_codex_image_resolution,
     normalize_codex_image_size,
@@ -52,7 +49,7 @@ from .toolbox import (
     normalize_toolbox_mode,
     process_media,
     process_media_variants,
-    run_local_command,
+    run_codex_image,
     validate_local_file,
 )
 from .vision import AliyunVisionClient
@@ -1071,7 +1068,6 @@ class ToolboxManager:
     def submit_image(self, body: dict[str, object]) -> dict[str, object]:
         # The concrete CLI stays server-side. The browser only sends the prompt,
         # canvas options, and references, so users never need to know or edit command syntax.
-        command = default_codex_image_command()
         prompt = str(body.get("prompt") or "").strip()
         if not prompt:
             raise RhCliError("TOOLBOX_PROMPT_MISSING", "请输入图像生成要求。")
@@ -1085,20 +1081,6 @@ class ToolboxManager:
             self._asset_path(item, label=f"参考图 {index + 1}", suffixes=IMAGE_SUFFIXES)
             for index, item in enumerate(raw_references)
         ]
-        # Validate the template before creating a task. This keeps malformed CLI
-        # settings from leaving a task that can only fail asynchronously.
-        expand_command_template(
-            command,
-            {
-                "prompt": prompt,
-                "output": "/pending/toolbox-result.png",
-                "references": [str(path) for path in references],
-                "mode": "image",
-                "model": model,
-                "resolution": resolution,
-                "size": size,
-            },
-        )
         task, task_folder = self._new_task(
             name="Codex 图像生成",
             files={f"reference_{index + 1}": str(path) for index, path in enumerate(references)},
@@ -1116,7 +1098,6 @@ class ToolboxManager:
             self._run_image,
             task["id"],
             task_folder,
-            command,
             prompt,
             references,
             resolution,
@@ -1130,7 +1111,6 @@ class ToolboxManager:
         self,
         task_id: str,
         task_folder: Path,
-        command: str,
         prompt: str,
         references: list[Path],
         resolution: str,
@@ -1150,11 +1130,7 @@ class ToolboxManager:
                 "size": size,
             }
             self._update_progress(task_id, "正在执行本地 Codex 命令…")
-            expand_command_template(command, context)
-            run_local_command(command, context, cwd=task_folder, on_result=lambda result: self._log_codex_cli_result(task_id, result))
-            generated = find_generated_media(task_folder)
-            if not generated:
-                raise RhCliError("TOOLBOX_OUTPUT_MISSING", "本地命令已结束，但任务目录中没有找到图片结果。")
+            generated = run_codex_image(context, cwd=task_folder, on_result=lambda result: self._log_codex_cli_result(task_id, result))
             outputs = [self._file_output(path, node_id="codex") for path in generated]
             self._finish(task_id, outputs, started_at)
         except Exception as error:

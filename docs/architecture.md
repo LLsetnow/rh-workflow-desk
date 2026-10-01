@@ -35,6 +35,7 @@ backend/
 - `backend/app.py` 中的 `LocalStore` 负责 SQLite 任务历史、独立用量记录、工作流资料和本地持久化；`TaskManager` 负责本地等待队列、并发槽位、提交、轮询、产物下载和重启恢复。仪表盘的消耗指标只读取 `usage_records`，首次启动时从已有任务回填，删除任务不会删除用量记录；注册工作流评分排行则读取成片库当前可见产物的评分，只保留工作流库中已登记的工作流。
 - `backend/prompt_store.py`、`backend/action_store.py`、`backend/reference_store.py` 分别管理提示词、动作和参考资源的 JSON 索引；动作/参考资源统一从设置的媒体库 ref 根目录读取固定目录中的 JSON 文件。每个条目保存稳定 `id`、分类、标签、文本和相对媒体路径，前端编辑、新建和删除后由对应 Store 原子重写 JSON；不再生成或读取 Markdown 及派生索引缓存。
 - `backend/resource_library.py` 负责从零创建空资源库和解析 `Resources.json`；初始化只接受空目录，不覆盖已有文件。TTS 目录通过 `sources.tts` 解析，和人物、动作、参考资源共用同一个媒体库根目录。
+- `backend/toolbox.py` 的图像生成直接调用本机 `codex exec` 和内置 `image_gen`，不经过 OPC，也不再读取 `RH_CODEX_IMAGE_COMMAND` 命令模板。参考图以原始路径通过 `--image` 附加；图像模型、分辨率和画幅写入生成指令，具体支持范围由原生图像工具决定。调用使用 `--ignore-user-config` 保留登录凭证并跳过全局配置，默认使用 CLI 自身默认代理模型；可通过 `RH_CODEX_AGENT_MODEL` 单独指定代理模型，通过 `RH_CODEX_CLI_PATH` 指定可执行文件。代理以任务目录作为工作根目录，使用 `workspace-write` 沙箱。最终结构化回复必须指向本次任务的 `result.png`，且文件已落盘并非空，任务才能完成；stdout、stderr 和退出码继续保存到脱敏阶段日志。
 - API Key、账号和 token 等敏感信息只能脱敏后进入页面或日志，不能写入调试输出、文档或 git。
 
 ## 数据目录
