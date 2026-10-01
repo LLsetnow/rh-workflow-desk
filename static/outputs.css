@@ -146,7 +146,9 @@
 .artifact-tag, .artifact-feature-tag { display: inline-flex; min-height: 19px; align-items: center; padding: 0 6px; border-radius: 5px; font-size: 9px; font-weight: 680; }
 .artifact-tag { border: 1px solid var(--warm-soft); color: var(--warm); background: var(--warm-soft); }
 .artifact-feature-tag { border: 1px solid var(--accent-outline); color: var(--accent); background: var(--accent-ghost); }
-.artifact-size { color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; }
+.artifact-card-head-meta { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; justify-content: flex-end; gap: 7px; }
+.artifact-project-name { display: block; min-width: 0; max-width: min(32vw, 136px); overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-size { flex: 0 0 auto; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; }
 .artifact-media { display: flex; align-items: center; justify-content: center; height: clamp(270px, 28vw, 370px); min-height: 270px; margin: 11px 13px 0; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 11px; background: var(--surface-deep-strong); }
 .artifact-media-link { display: block; width: 100%; height: 100%; }
 .artifact-media img, .artifact-media video { display: block; width: 100%; height: 100%; object-fit: contain; }

@@ -844,7 +844,9 @@
   }
   function artifactCardHeadMarkup(item) {
     var size = item && item.kind === "file" ? formatSize(item.size) : "文本";
-    return '<div class="artifact-card-head"><div class="artifact-card-labels"><span class="artifact-type ' + esc(item.display_type) + '">' + typeLabel(item.display_type) + '</span>' + artifactTagsMarkup(item) + '</div><span class="artifact-size">' + size + '</span></div>';
+    var projectName = String(item && item.project_name || "").trim();
+    var projectLabel = projectName ? '<span class="artifact-project-name" title="项目：' + esc(projectName) + '">' + esc(projectName) + '</span>' : "";
+    return '<div class="artifact-card-head"><div class="artifact-card-labels"><span class="artifact-type ' + esc(item.display_type) + '">' + typeLabel(item.display_type) + '</span>' + artifactTagsMarkup(item) + '</div><div class="artifact-card-head-meta">' + projectLabel + '<span class="artifact-size">' + size + '</span></div></div>';
   }
   function refreshRatedArtifact(item) {
     var card = null;

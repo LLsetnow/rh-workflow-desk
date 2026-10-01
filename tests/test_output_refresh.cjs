@@ -69,7 +69,7 @@ function setup(count, page = 1) {
     globalThis.api = { state, refreshTaggedArtifact, refreshRatedArtifact,
       handleOutputArrowNavigation, restoreArtifactFocusAfterClick, focusSelectedArtifact,
       deleteArtifactTask, deleteOneStarOutputs, outputWorkflowNames,
-      outputWorkflowFilterLabel, outputWorkflowFilterMatches, renderWorkflowFilters,
+      outputWorkflowFilterLabel, outputWorkflowFilterMatches, renderWorkflowFilters, artifactCardHeadMarkup,
       filteredOutputs, confirmOutputProjectMove, projectMove, updateOutputTaskProjectState };
   `), context);
   const { api } = context;
@@ -139,6 +139,23 @@ test("a tag change that still matches only updates the card heading", () => {
   api.refreshTaggedArtifact(api.state.outputs[1]);
   assert.deepEqual(grid.children, before);
   assert.match(before[1].head.outerHTML, /artifact-tag-case/);
+});
+
+test("artifact heading shows its project name and keeps the file size", () => {
+  const { api } = setup(0);
+  const markup = api.artifactCardHeadMarkup({
+    display_type: "video", kind: "file", size: 3 * 1024 * 1024,
+    project_name: "示例项目", feature: "workflow",
+  });
+  assert.match(markup, /class="artifact-project-name" title="项目：示例项目">示例项目<\/span>/);
+  assert.match(markup, /class="artifact-size">3\.0 MB<\/span>/);
+});
+
+test("artifact heading omits the project label when the task is unclassified", () => {
+  const { api } = setup(0);
+  const markup = api.artifactCardHeadMarkup({ display_type: "video", kind: "file", size: 1024, feature: "workflow" });
+  assert.doesNotMatch(markup, /artifact-project-name/);
+  assert.match(markup, /class="artifact-size">1\.0 KB<\/span>/);
 });
 
 test("rating exclusion uses the same incremental update", () => {
