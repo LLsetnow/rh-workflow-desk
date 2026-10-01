@@ -849,6 +849,12 @@
     var projectLabel = projectName ? '<span class="artifact-project-name" title="项目：' + esc(projectName) + '">' + esc(projectName) + '</span>' : "";
     return '<div class="artifact-card-head"><div class="artifact-card-labels"><span class="artifact-type ' + esc(item.display_type) + '">' + typeLabel(item.display_type) + '</span>' + artifactTagsMarkup(item) + '</div><div class="artifact-card-head-meta">' + projectLabel + '<span class="artifact-size">' + size + '</span></div></div>';
   }
+  function artifactCardDisplayName(item) {
+    var artifactName = String(item && item.name || "").trim();
+    var workflowName = String(item && (item.workflow_name || item.task_name) || "").trim();
+    var displayName = artifactName || workflowName || "产物";
+    return outputFileNameParts(displayName).stem.trim() || "产物";
+  }
   function refreshRatedArtifact(item) {
     var card = null;
     document.querySelectorAll(".artifact-card").forEach(function (candidate) {
@@ -2193,14 +2199,15 @@
   }
   function artifactCardMarkup(item, index) {
     var cost = costLabel(item);
+    var displayName = artifactCardDisplayName(item);
     var canCompare = item.display_type === "image" || item.display_type === "video";
     var canProject = Boolean(String(item.task_id || "").trim());
     var canDrag = canCompare || canProject;
     var dragDescription = canCompare && canProject ? "可拖拽到项目文件夹或内容对比" : (canProject ? "可拖拽到项目文件夹" : (canCompare ? "可拖拽到内容对比" : "产物卡片"));
-    return '<article class="artifact-card' + (canCompare ? ' is-compare-draggable' : '') + (canProject ? ' is-project-draggable' : '') + '" data-task-id="' + esc(item.task_id) + '" data-artifact-id="' + esc(item.id) + '" data-compare-draggable="' + (canCompare ? 'true' : 'false') + '" data-project-draggable="' + (canProject ? 'true' : 'false') + '" draggable="' + (canDrag ? 'true' : 'false') + '" tabindex="0" role="button" aria-roledescription="' + dragDescription + '" aria-label="放大查看 ' + esc(item.name) + '" style="animation-delay:' + Math.min(index * 35, 350) + 'ms">' +
+    return '<article class="artifact-card' + (canCompare ? ' is-compare-draggable' : '') + (canProject ? ' is-project-draggable' : '') + '" data-task-id="' + esc(item.task_id) + '" data-artifact-id="' + esc(item.id) + '" data-compare-draggable="' + (canCompare ? 'true' : 'false') + '" data-project-draggable="' + (canProject ? 'true' : 'false') + '" draggable="' + (canDrag ? 'true' : 'false') + '" tabindex="0" role="button" aria-roledescription="' + dragDescription + '" aria-label="放大查看 ' + esc(displayName) + '" style="animation-delay:' + Math.min(index * 35, 350) + 'ms">' +
       artifactCardHeadMarkup(item) +
       mediaMarkup(item) +
-      '<div class="artifact-body"><div class="artifact-name-row"><div class="artifact-name" title="' + esc(item.name) + '">' + esc(item.name) + '</div>' + ratingStarsMarkup(item) + '</div><div class="artifact-task" title="点击工作流名称加载到任务提交页"><span class="artifact-task-prefix">任务 ·</span>' + taskWorkflowLabel(item) + taskIdLabel(item) + '</div><div class="artifact-foot"><div class="artifact-foot-info"><span>' + formatTime(item.modified_at || item.task_completed_at || item.task_created_at) + '</span>' + artifactResolutionMarkup(item) + artifactDurationMarkup(item) + '</div>' + (cost ? '<span class="artifact-cost" title="' + esc(costTitle(item)) + '">' + esc(cost) + '</span>' : '') + '</div></div>' +
+      '<div class="artifact-body"><div class="artifact-name-row"><div class="artifact-name" title="' + esc(displayName) + '">' + esc(displayName) + '</div>' + ratingStarsMarkup(item) + '</div><div class="artifact-task" title="点击工作流名称加载到任务提交页"><span class="artifact-task-prefix">任务 ·</span>' + taskWorkflowLabel(item) + taskIdLabel(item) + '</div><div class="artifact-foot"><div class="artifact-foot-info"><span>' + formatTime(item.modified_at || item.task_completed_at || item.task_created_at) + '</span>' + artifactResolutionMarkup(item) + artifactDurationMarkup(item) + '</div>' + (cost ? '<span class="artifact-cost" title="' + esc(costTitle(item)) + '">' + esc(cost) + '</span>' : '') + '</div></div>' +
       '</article>';
   }
   function outputsEmptyMarkup() {

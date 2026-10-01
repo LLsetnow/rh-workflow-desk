@@ -43,6 +43,24 @@ def test_output_cards_open_a_keyboard_accessible_preview_modal():
     assert "bindVideoLoopControls" in script
 
 
+def test_output_card_titles_prefer_artifact_stem_and_fall_back_to_workflow_stem():
+    script = (STATIC_ROOT / "outputs.js").read_text(encoding="utf-8")
+    helper_match = re.search(r"function artifactCardDisplayName\(item\) \{(?P<body>.*?)\n  \}", script, re.S)
+    assert helper_match
+    helper = helper_match.group("body")
+    assert 'String(item && item.name || "").trim()' in helper
+    assert 'item.workflow_name || item.task_name' in helper
+    assert "artifactName || workflowName || \"产物\"" in helper
+    assert "outputFileNameParts(displayName).stem" in helper
+
+    card_start = script.index("function artifactCardMarkup(item, index)")
+    card_end = script.index("function outputsEmptyMarkup()", card_start)
+    card_markup = script[card_start:card_end]
+    assert "var displayName = artifactCardDisplayName(item);" in card_markup
+    assert "aria-label=\"放大查看 ' + esc(displayName)" in card_markup
+    assert "class=\"artifact-name\" title=\"' + esc(displayName) + '\">' + esc(displayName)" in card_markup
+
+
 def test_output_cards_support_local_selection_and_media_shortcuts():
     script = (STATIC_ROOT / "outputs.js").read_text(encoding="utf-8")
     styles = (STATIC_ROOT / "outputs.css").read_text(encoding="utf-8")
