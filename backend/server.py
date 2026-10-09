@@ -53,6 +53,7 @@ from .toolbox import (
     validate_local_file,
 )
 from .vision import AliyunVisionClient
+from .model_catalog import FavoriteModelCatalog
 from .video_downloader import (
     SOCIAL_PLATFORM_LABELS,
     download_douyin_video,
@@ -1402,6 +1403,16 @@ class LocalHandler(BaseHTTPRequestHandler):
             state["settings"]["media_library_root"] = store.media_library_root() or str(self.server.reference_store.source_root)  # type: ignore[attr-defined]
             self._json(200, state)
             return
+        if path == "/api/models/favorites":
+            store, _ = self.state
+            query = parse_qs(parsed_url.query)
+            try:
+                self._json(200, self.server.model_catalog.list_models(  # type: ignore[attr-defined]
+                    store, query.get("account_id", [""])[0], refresh=query.get("refresh", [""])[0] == "1",
+                ))
+            except Exception as exc:
+                self._json(400 if isinstance(exc, RhCliError) else 500, self._safe_error(exc))
+            return
         if path == "/api/tts/voices":
             try:
                 self._json(200, {"voices": self.server.toolbox.tts_voices()})  # type: ignore[attr-defined]
@@ -2655,6 +2666,7 @@ class AppServer(ThreadingHTTPServer):
         self._runtime_logs = deque(maxlen=500)
         self._runtime_logs_lock = threading.Lock()
         self.store = LocalStore()
+        self.model_catalog = FavoriteModelCatalog()
         self.manager = TaskManager(self.store)
         self.toolbox = ToolboxManager(self.store)
         configured_library_path = self.store.prompt_library_path()

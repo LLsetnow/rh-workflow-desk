@@ -41,6 +41,7 @@ from rh_cli.workflow.client import (
 )
 from .telegram import TelegramDeliveryError, TelegramNotifier
 from .input_paths import input_source_path
+from .model_catalog import model_input_type
 from .video_downloader import extract_social_video_url, social_video_platform, download_social_video
 
 
@@ -656,6 +657,7 @@ def inspect_workflow(workflow: dict[str, Any]) -> dict[str, Any]:
     prompts: list[dict[str, Any]] = []
     random_noise: list[dict[str, Any]] = []
     resolutions: list[dict[str, Any]] = []
+    models: list[dict[str, Any]] = []
     for node_id, node in nodes.items():
         class_type = str(node.get("class_type", ""))
         lower_class = class_type.lower()
@@ -672,6 +674,12 @@ def inspect_workflow(workflow: dict[str, Any]) -> dict[str, Any]:
             if is_link(value):
                 continue
             input_id = f"{node_id}:{field}"
+            model_type = model_input_type(str(field), value)
+            if model_type:
+                models.append({"id": input_id, "node_id": str(node_id), "field": str(field),
+                               "title": f"{title} · {field}", "label": f"{title} · {field}",
+                               "class_type": class_type, "kind": "text", "model_type": model_type,
+                               "default": value, "required": False})
             if lower_field in FILE_FIELDS and any(hint in lower_class for hint in FILE_CLASS_HINTS):
                 files.append(
                     {
@@ -709,6 +717,9 @@ def inspect_workflow(workflow: dict[str, Any]) -> dict[str, Any]:
         "random_noise_count": len(random_noise),
         "resolution_inputs": resolutions,
         "resolution_count": len(resolutions),
+        "model_inputs": models,
+        "custom_inputs": models,
+        "custom_input_count": len(models),
         "bypassed_nodes": metadata_bypassed_nodes(workflow),
         "remote_workflow_id": remote_workflow_id(workflow),
     }
@@ -765,6 +776,7 @@ def workflow_input_catalog(workflow: dict[str, Any], analysis: dict[str, Any] | 
                 "kind": kind,
                 "required": automatic_item.get("required", False), "default": display_value(value),
                 "default_value": value,
+                "model_type": model_input_type(str(field), value),
             })
     return catalog
 
@@ -804,6 +816,8 @@ def normalize_workflow_input_config(
         if node_id not in nodes:
             raise RhCliError("INVALID_WORKFLOW_INPUT_CONFIG", f"找不到输入配置节点：{node_id}")
         kind = str(raw.get("kind") or (entry or {}).get("kind") or "text").strip().lower()
+        if (entry or {}).get("model_type"):
+            kind = "text"
         if kind not in WORKFLOW_INPUT_KINDS:
             raise RhCliError("INVALID_WORKFLOW_INPUT_CONFIG", f"输入 {input_id} 的类型不支持：{kind}")
         virtual_field = WORKFLOW_VIRTUAL_FIELDS.get(kind)
@@ -963,8 +977,8 @@ def configured_workflow_analysis(
     normalized = normalize_workflow_input_config(workflow, config)
     if not normalized or normalized.get("mode") != "manual":
         base["input_mode"] = "auto"
-        base["custom_inputs"] = []
-        base["custom_input_count"] = 0
+        base["custom_inputs"] = base.get("model_inputs", [])
+        base["custom_input_count"] = len(base["custom_inputs"])
         return base
     nodes = workflow_nodes(workflow)
     files: list[dict[str, Any]] = []

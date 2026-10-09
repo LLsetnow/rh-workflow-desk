@@ -237,18 +237,18 @@ h2 { margin-top: 6px; font-size: 20px; letter-spacing: -.025em; }
 .workflow-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .summary-item { padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 9px; color: var(--muted); font-size: 11px; }
 .summary-item strong { color: var(--ink); font-size: 13px; }
-.workflow-inputs { display: grid; gap: 12px; margin-top: 20px; }
+.workflow-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 20px; }
 .input-jump-bar { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--line-soft); border-radius: 13px; background: var(--surface-deep); }
 .input-jump-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .input-jump-heading small { color: var(--subtle); font-size: 9px; font-weight: 500; }
 .input-jump-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.input-jump-tag { display: inline-flex; align-items: center; min-width: 0; gap: 7px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--panel-glass); text-align: left; transition: border-color var(--motion-interaction) ease, color var(--motion-interaction) ease, background var(--motion-interaction) ease, transform var(--motion-interaction) ease; }
+.input-jump-tag { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; gap: 7px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--panel-glass); text-align: left; transition: border-color var(--motion-interaction) ease, color var(--motion-interaction) ease, background var(--motion-interaction) ease, transform var(--motion-interaction) ease; }
 .input-jump-tag:hover { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); transform: translateY(-1px); }
 .input-jump-tag.prompt .input-jump-icon { color: var(--warm); }
 .input-jump-icon { display: inline-grid; flex: 0 0 auto; place-items: center; min-width: 22px; height: 22px; border: 1px solid var(--accent-outline); border-radius: 6px; color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; font-weight: 750; }
 .input-jump-tag.prompt .input-jump-icon { border-color: var(--warm-strong); }
 .input-jump-title { max-width: 180px; overflow: hidden; color: var(--ink); font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.input-jump-tag code { color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; white-space: nowrap; }
+.input-jump-tag code { min-width: 0; overflow: hidden; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .input-jump-tag:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .input-card.input-target { border-color: var(--accent); animation: input-target-pulse var(--motion-feedback) ease-out; }
 @keyframes input-target-pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 18% { box-shadow: 0 0 0 4px var(--accent-outline), 0 0 28px var(--accent-fill); } }
@@ -315,6 +315,9 @@ h2 { margin-top: 6px; font-size: 20px; letter-spacing: -.025em; }
 .field-code { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; }
 .input-card .field-code { flex-shrink: 0; padding-top: 2px; }
 .custom-input-control { margin-top: 13px; }
+.model-select { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-width: 0; }
+.model-select .model-value { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.model-select[data-model-state="error"] .model-refresh { color: var(--danger); }
 .custom-input-control input, .custom-input-control select { width: 100%; font-size: 11px; }
 .file-dropzone { display: flex; align-items: center; gap: 11px; min-height: 68px; margin-top: 13px; padding: 10px; border: 1px dashed var(--border-drop); border-radius: 13px; background: var(--surface-deep); cursor: pointer; outline: none; transition: border-color var(--motion-interaction) ease, background var(--motion-interaction) ease, transform var(--motion-interaction) ease, box-shadow var(--motion-interaction) ease; }
 .file-dropzone:hover, .file-dropzone:focus-visible, .file-dropzone.is-dragging { border-color: var(--accent); background: var(--accent-ghost); box-shadow: 0 0 0 3px var(--accent-ghost); transform: translateY(-1px); }

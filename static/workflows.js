@@ -464,7 +464,7 @@
     return {
       id: String(item.id || ""), node_id: String(item.node_id || ""), field: String(item.field || ""),
       title: String(item.title || item.class_type || item.node_id || ""), class_type: String(item.class_type || ""),
-      label: String(item.label || item.title || item.field || item.node_id || ""), kind: String(item.kind || "text"),
+      label: String(item.label || item.title || item.field || item.node_id || ""), kind: ["lora_name", "unet_name"].indexOf(item.field) !== -1 ? "text" : String(item.kind || "text"),
       required: Boolean(item.required), options: Array.isArray(item.options) ? item.options.slice() : [], order: 0,
       virtual: Boolean(item.virtual), default: item.default == null ? "" : item.default,
       default_value: Object.prototype.hasOwnProperty.call(item, "default_value") ? item.default_value : (item.default == null ? "" : item.default)
@@ -472,7 +472,7 @@
   }
   function defaultConfigItems(catalog) {
     return (catalog || []).filter(function (item) {
-      return ["file", "prompt", "resolution", "random_noise"].indexOf(String(item.kind || "")) !== -1;
+      return ["file", "prompt", "resolution", "random_noise"].indexOf(String(item.kind || "")) !== -1 || ["lora_name", "unet_name"].indexOf(item.field) !== -1;
     }).map(configItemFromCatalog);
   }
   function createConfigEditor(record, analysis, inputConfig) {
@@ -521,15 +521,19 @@
     nodeSelect.value = nodeIds.indexOf(currentNode) !== -1 ? currentNode : (nodeIds[0] || "");
     renderConfigFieldOptions();
     items.innerHTML = editor.items.length ? editor.items.map(function (item, index) {
+      var modelType = window.RHModelSelect && window.RHModelSelect.typeForField(item.field);
       var kindOptions = configKinds.filter(function (entry) {
+        if (modelType) return entry[0] === "text";
         return item.virtual ? ["resolution", "random_noise"].indexOf(entry[0]) !== -1 : ["resolution", "random_noise"].indexOf(entry[0]) === -1;
       }).map(function (entry) {
-        return '<option value="' + esc(entry[0]) + '"' + (item.kind === entry[0] ? " selected" : "") + '>' + esc(entry[1]) + '</option>';
+        return '<option value="' + esc(entry[0]) + '"' + (item.kind === entry[0] ? " selected" : "") + '>' + esc(modelType ? "收藏模型" : entry[1]) + '</option>';
       }).join("");
-      var options = item.kind === "select" ? '<label class="workflow-config-options field-group"><span class="field-label">下拉选项（用逗号或换行分隔）</span><input data-config-action="options" data-config-index="' + index + '" type="text" value="' + esc((item.options || []).join(", ")) + '" placeholder="例如：low, medium, high" /></label>' : "";
+      var options = item.kind === "select" && !modelType ? '<label class="workflow-config-options field-group"><span class="field-label">下拉选项（用逗号或换行分隔）</span><input data-config-action="options" data-config-index="' + index + '" type="text" value="' + esc((item.options || []).join(", ")) + '" placeholder="例如：low, medium, high" /></label>' : "";
       var value = item.default_value == null ? "" : item.default_value;
       var defaultControl;
-      if (item.kind === "boolean") {
+      if (modelType) {
+        defaultControl = window.RHModelSelect.markup(item.field, value, { "data-config-action": "default", "data-config-index": index, "aria-label": item.label + "默认模型" });
+      } else if (item.kind === "boolean") {
         defaultControl = '<span class="workflow-config-default-check"><input data-config-action="default" data-config-index="' + index + '" type="checkbox"' + ((value === true || value === "true" || value === 1) ? " checked" : "") + ' /><span>启用</span></span>';
       } else if (item.kind === "prompt" || (typeof value === "string" && value.length > 140)) {
         defaultControl = '<textarea data-config-action="default" data-config-index="' + index + '" rows="2">' + esc(value) + '</textarea>';
@@ -539,6 +543,7 @@
       return '<div class="workflow-config-item"><div class="workflow-config-item-head"><div><div class="workflow-config-item-title" title="' + esc(item.title) + '">' + esc(item.label || item.title) + '</div><code class="workflow-config-item-id" title="' + esc(item.id) + '">' + esc(item.id) + '</code></div><button class="workflow-config-remove" type="button" data-config-action="remove" data-config-index="' + index + '">移除</button></div>' +
         '<div class="workflow-config-item-grid"><div class="workflow-config-name-field field-group"><span class="field-label">显示名称</span><div class="workflow-config-name-control"><label class="workflow-config-required"><span class="workflow-config-required-label">必填</span><input data-config-action="required" data-config-index="' + index + '" type="checkbox"' + (item.required ? " checked" : "") + ' /><span class="workflow-config-required-track" aria-hidden="true"></span></label><input data-config-action="label" data-config-index="' + index + '" type="text" value="' + esc(item.label) + '" maxlength="160" /></div></div><label class="field-group"><span class="field-label">输入类型</span><select data-config-action="kind" data-config-index="' + index + '">' + kindOptions + '</select></label><label class="field-group"><span class="field-label">默认值</span>' + defaultControl + '</label></div>' + options + '</div>';
     }).join("") : '<div class="workflow-config-empty">还没有选择输入字段。请从上方选择节点和字段后添加。</div>';
+    if (window.RHModelSelect) window.RHModelSelect.hydrate(items, function () { return $("workflowRecordAccount").value; });
   }
   function renderConfigFieldOptions() {
     var editor = state.configEditor;
@@ -1391,6 +1396,9 @@
       renderConfigBuilder();
     });
     $("workflowConfigNode").addEventListener("change", renderConfigFieldOptions);
+    $("workflowRecordAccount").addEventListener("change", function () {
+      if (window.RHModelSelect) window.RHModelSelect.hydrate($("workflowConfigItems"), function () { return $("workflowRecordAccount").value; });
+    });
     $("addWorkflowConfigItem").addEventListener("click", addConfigItem);
     $("workflowEditorModal").addEventListener("input", function (event) {
       var index = Number(event.target.dataset.configIndex);

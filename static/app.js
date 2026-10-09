@@ -450,9 +450,30 @@
     draftSaveTimer = window.setTimeout(saveDraftNow, 180);
   }
 
+  function workflowModelInputs(workflow) {
+    var models = [];
+    Object.keys(workflow || {}).forEach(function (nodeId) {
+      var node = workflow[nodeId];
+      if (!node || typeof node !== "object" || !node.inputs) return;
+      ["lora_name", "unet_name"].forEach(function (field) {
+        if (typeof node.inputs[field] !== "string") return;
+        var title = String(node._meta && node._meta.title || node.class_type || nodeId) + " · " + field;
+        models.push({ id: nodeId + ":" + field, node_id: nodeId, field: field, title: title, label: title,
+          class_type: node.class_type || "", kind: "text", model_type: field === "lora_name" ? "lora" : "diffusion",
+          default: node.inputs[field], required: false });
+      });
+    });
+    return models;
+  }
+
+  function workflowModelAccount() {
+    return appState.workflowAccountId || appState.currentAccountId || "";
+  }
+
   function effectiveWorkflowAnalysis(baseAnalysis, config, workflow) {
     var base = baseAnalysis && typeof baseAnalysis === "object" ? baseAnalysis : {};
-    var result = Object.assign({}, base, { input_mode: "auto", custom_inputs: [], custom_input_count: 0 });
+    var models = workflowModelInputs(workflow);
+    var result = Object.assign({}, base, { input_mode: "auto", custom_inputs: models, custom_input_count: models.length });
     if (!config || config.mode !== "manual" || !Array.isArray(config.items) || !workflow || typeof workflow !== "object") return result;
     var nodes = workflow;
     var files = [], prompts = [], resolutions = [], randomNoise = [], custom = [];
@@ -470,6 +491,7 @@
         title: String(raw.label || raw.title || (node._meta && node._meta.title) || node.class_type || nodeId),
         class_type: String(raw.class_type || node.class_type || "")
       });
+      if (["lora_name", "unet_name"].indexOf(field) !== -1) { kind = item.kind = "text"; item.options = []; }
       if (kind === "resolution") {
         var resolution = (base.resolution_inputs || []).find(function (entry) { return String(entry.node_id || entry.id) === nodeId; });
         item = Object.assign({}, resolution || {}, item, { id: item.id, node_id: nodeId, title: item.title, config_id: item.id });
@@ -974,6 +996,7 @@
     appState.keys = data.keys || [];
     appState.accounts = data.accounts || [];
     appState.currentAccountId = String((data.settings && data.settings.current_account_id) || "").trim();
+    if (window.RHModelSelect) window.RHModelSelect.hydrate($("workflowInputs"), workflowModelAccount);
     var tasks = Array.isArray(data.tasks) ? data.tasks : [];
     var completedTasks = detectCompletedTasks(tasks);
     appState.tasks = tasks;
@@ -1350,7 +1373,11 @@
     });
     Object.keys(values.customInputs || values.custom_inputs || {}).forEach(function (inputId) {
       var custom = document.querySelector('.custom-value[data-input-id="' + CSS.escape(inputId) + '"]');
-      if (custom) custom.value = String((values.customInputs || values.custom_inputs)[inputId] == null ? "" : (values.customInputs || values.custom_inputs)[inputId]);
+      if (custom) {
+        var value = (values.customInputs || values.custom_inputs)[inputId];
+        if (window.RHModelSelect) window.RHModelSelect.setValue(custom, value);
+        else custom.value = String(value == null ? "" : value);
+      }
     });
     Object.keys(values.randomNoise || {}).forEach(function (nodeId) {
       var config = values.randomNoise[nodeId] || {};
@@ -1737,7 +1764,7 @@
     return {
       id: String(item.id || ""), node_id: String(item.node_id || ""), field: String(item.field || ""),
       title: String(item.title || item.class_type || item.node_id || ""), class_type: String(item.class_type || ""),
-      label: String(item.label || item.title || item.field || item.node_id || ""), kind: String(item.kind || "text"),
+      label: String(item.label || item.title || item.field || item.node_id || ""), kind: ["lora_name", "unet_name"].indexOf(item.field) !== -1 ? "text" : String(item.kind || "text"),
       required: Boolean(item.required), options: Array.isArray(item.options) ? item.options.slice() : [], order: 0,
       virtual: Boolean(item.virtual), default: item.default == null ? "" : item.default,
       default_value: Object.prototype.hasOwnProperty.call(item, "default_value") ? item.default_value : (item.default == null ? "" : item.default)
@@ -1746,7 +1773,7 @@
 
   function defaultWorkflowConfigItems(catalog) {
     return (catalog || []).filter(function (item) {
-      return ["file", "prompt", "resolution", "random_noise"].indexOf(String(item.kind || "")) !== -1;
+      return ["file", "prompt", "resolution", "random_noise"].indexOf(String(item.kind || "")) !== -1 || ["lora_name", "unet_name"].indexOf(item.field) !== -1;
     }).map(workflowConfigItemFromCatalog);
   }
 
@@ -1833,15 +1860,19 @@
     nodeSelect.value = nodeIds.indexOf(currentNode) !== -1 ? currentNode : (nodeIds[0] || "");
     renderWorkflowConfigFieldOptions();
     items.innerHTML = editor.items.length ? editor.items.map(function (item, index) {
+      var modelType = window.RHModelSelect && window.RHModelSelect.typeForField(item.field);
       var kindOptions = workflowConfigKinds.filter(function (entry) {
+        if (modelType) return entry[0] === "text";
         return item.virtual ? ["resolution", "random_noise"].indexOf(entry[0]) !== -1 : ["resolution", "random_noise"].indexOf(entry[0]) === -1;
       }).map(function (entry) {
-        return '<option value="' + esc(entry[0]) + '"' + (item.kind === entry[0] ? " selected" : "") + '>' + esc(entry[1]) + '</option>';
+        return '<option value="' + esc(entry[0]) + '"' + (item.kind === entry[0] ? " selected" : "") + '>' + esc(modelType ? "收藏模型" : entry[1]) + '</option>';
       }).join("");
-      var options = item.kind === "select" ? '<label class="workflow-config-options field-group"><span class="field-label">下拉选项（用逗号或换行分隔）</span><input data-config-action="options" data-config-index="' + index + '" type="text" value="' + esc((item.options || []).join(", ")) + '" placeholder="例如：low, medium, high" /></label>' : "";
+      var options = item.kind === "select" && !modelType ? '<label class="workflow-config-options field-group"><span class="field-label">下拉选项（用逗号或换行分隔）</span><input data-config-action="options" data-config-index="' + index + '" type="text" value="' + esc((item.options || []).join(", ")) + '" placeholder="例如：low, medium, high" /></label>' : "";
       var value = item.default_value == null ? "" : item.default_value;
       var defaultControl;
-      if (item.kind === "boolean") {
+      if (modelType) {
+        defaultControl = window.RHModelSelect.markup(item.field, value, { "data-config-action": "default", "data-config-index": index, "aria-label": item.label + "默认模型" });
+      } else if (item.kind === "boolean") {
         defaultControl = '<span class="workflow-config-default-check"><input data-config-action="default" data-config-index="' + index + '" type="checkbox"' + ((value === true || value === "true" || value === 1) ? " checked" : "") + ' /><span>启用</span></span>';
       } else if (item.kind === "prompt" || (typeof value === "string" && value.length > 140)) {
         defaultControl = '<textarea data-config-action="default" data-config-index="' + index + '" rows="2">' + esc(value) + '</textarea>';
@@ -1851,6 +1882,7 @@
       return '<div class="workflow-config-item"><div class="workflow-config-item-head"><div><div class="workflow-config-item-title" title="' + esc(item.title) + '">' + esc(item.label || item.title) + '</div><code class="workflow-config-item-id" title="' + esc(item.id) + '">' + esc(item.id) + '</code></div><button class="workflow-config-remove" type="button" data-config-action="remove" data-config-index="' + index + '">移除</button></div>' +
         '<div class="workflow-config-item-grid"><div class="workflow-config-name-field field-group"><span class="field-label">显示名称</span><div class="workflow-config-name-control"><label class="workflow-config-required"><span class="workflow-config-required-label">必填</span><input data-config-action="required" data-config-index="' + index + '" type="checkbox"' + (item.required ? " checked" : "") + ' /><span class="workflow-config-required-track" aria-hidden="true"></span></label><input data-config-action="label" data-config-index="' + index + '" type="text" value="' + esc(item.label) + '" maxlength="160" /></div></div><label class="field-group"><span class="field-label">输入类型</span><select data-config-action="kind" data-config-index="' + index + '">' + kindOptions + '</select></label><label class="field-group"><span class="field-label">默认值</span>' + defaultControl + '</label></div>' + options + '</div>';
     }).join("") : '<div class="workflow-config-empty">还没有选择输入字段。请从上方选择节点和字段后添加。</div>';
+    if (window.RHModelSelect) window.RHModelSelect.hydrate(items, function () { return $("workflowRecordAccount").value || workflowModelAccount(); });
   }
 
   function workflowEditorName(value) {
@@ -2037,12 +2069,16 @@
       });
     }
     if (customInputs.length) {
-      html += '<div class="section-kicker custom-input-section-label">手动配置输入 · 按工作流库设置</div>';
+      html += '<div class="section-kicker custom-input-section-label">' + (analysis.input_mode === "manual" ? '手动配置输入 · 按工作流库设置' : '模型参数') + '</div>';
       customInputs.forEach(function (item) {
         var value = item.default == null ? "" : String(item.default);
         var kind = String(item.kind || "text").toLowerCase();
         var control = "";
-        if (kind === "select") {
+        var modelType = window.RHModelSelect && window.RHModelSelect.typeForField(item.field);
+        var typeLabel = modelType === "lora" ? "LoRA" : (modelType === "diffusion" ? "扩散模型" : (item.kind || "text"));
+        if (modelType) {
+          control = window.RHModelSelect.markup(item.field, value, { "class": "custom-value", "data-input-id": item.id, "aria-label": item.label || item.title || item.field });
+        } else if (kind === "select") {
           var options = Array.isArray(item.options) ? item.options : [];
           control = '<select class="custom-value" data-input-id="' + esc(item.id) + '">' + options.map(function (option) {
             return '<option value="' + esc(option) + '"' + (String(option) === value ? " selected" : "") + '>' + esc(option) + '</option>';
@@ -2052,12 +2088,13 @@
         } else {
           control = '<input class="custom-value" data-input-id="' + esc(item.id) + '" type="' + (kind === "number" ? "number" : "text") + '"' + (kind === "number" ? ' step="any" inputmode="decimal"' : '') + ' value="' + esc(value) + '" placeholder="' + esc(item.required ? "请输入必填值" : "可选") + '" />';
         }
-        html += '<div class="input-card custom-input-card' + (isNodeBypassed(item.node_id) ? ' is-bypassed' : '') + '" data-input-id="' + esc(item.id) + '" data-node-id="' + esc(item.node_id) + '"><div class="input-card-head"><div class="input-card-label">' + inputTitleMarkup(item, item.label || item.title || item.field) + '<div class="input-card-subhead"><div class="input-type">' + esc(item.kind || "text") + (item.required ? " · 必填" : " · 可选") + '</div><span class="input-bypass-note" hidden>本次提交会移除该节点及其直接输出连线</span></div></div><div class="input-card-actions">' + bypassControlMarkup(item.id, item.node_id) + '<span class="field-code">' + esc(item.id) + '</span></div></div>' +
+        html += '<div class="input-card custom-input-card' + (isNodeBypassed(item.node_id) ? ' is-bypassed' : '') + '" data-input-id="' + esc(item.id) + '" data-node-id="' + esc(item.node_id) + '"><div class="input-card-head"><div class="input-card-label">' + inputTitleMarkup(item, item.label || item.title || item.field) + '<div class="input-card-subhead"><div class="input-type">' + esc(typeLabel) + (item.required ? " · 必填" : " · 可选") + '</div><span class="input-bypass-note" hidden>本次提交会移除该节点及其直接输出连线</span></div></div><div class="input-card-actions">' + bypassControlMarkup(item.id, item.node_id) + '<span class="field-code">' + esc(item.id) + '</span></div></div>' +
           '<div class="custom-input-control">' + control + '</div><div class="file-meta">节点字段：' + esc(item.node_id + ":" + item.field) + '</div></div>';
       });
     }
     if (!files.length && !prompts.length && !resolutions.length && !randomNoise.length && !customInputs.length) html += '<div class="empty-queue compact-empty"><strong>没有识别到可填写输入</strong><span>当前工作流没有需要在这里配置的输入节点。</span></div>';
     inputs.innerHTML = html;
+    if (window.RHModelSelect) window.RHModelSelect.hydrate(inputs, workflowModelAccount);
     inputs.hidden = false;
     $("submitStrip").hidden = false;
     syncSubmitRepeatControl(collectInputs());
@@ -3666,6 +3703,9 @@
       renderWorkflowConfigBuilder();
     });
     $("workflowConfigNode").addEventListener("change", renderWorkflowConfigFieldOptions);
+    $("workflowRecordAccount").addEventListener("change", function () {
+      if (window.RHModelSelect) window.RHModelSelect.hydrate($("workflowConfigItems"), function () { return $("workflowRecordAccount").value || workflowModelAccount(); });
+    });
     $("addWorkflowConfigItem").addEventListener("click", addWorkflowConfigItem);
     $("workflowConfigItems").addEventListener("click", function (event) {
       var target = event.target.closest("[data-config-action]");
@@ -3897,6 +3937,7 @@
         syncSubmitRepeatControl(collectInputs());
         scheduleDraftSave();
       }
+      if (event.target.classList.contains("custom-value")) scheduleDraftSave();
     });
     $("workflowInputs").addEventListener("blur", function (event) {
       if (event.target.classList.contains("file-path")) {
