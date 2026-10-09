@@ -32,6 +32,33 @@ class Store:
         return {"id": account_id} if account_id in {"a", "b"} else None
 
 
+def resources(records=None, *, pages=1, has_next=False):
+    return httpx.Response(200, json={"code": 0, "data": {
+        "records": records or [], "pages": str(pages), "hasNext": has_next,
+    }})
+
+
+def lora_record(*versions):
+    return {"resourceType": "LORA", "versions": [
+        {"versionResourceName": filename, "baseModel": label} for filename, label in versions
+    ]}
+
+
+@pytest.fixture(autouse=True)
+def resource_api(monkeypatch):
+    """Every metadata request is local and synthetic, including older tests."""
+    original_client = httpx.Client
+    state = {"requests": [], "reply": lambda request: resources()}
+
+    def handle(request):
+        state["requests"].append(request)
+        return state["reply"](request)
+
+    monkeypatch.setattr("backend.model_catalog.httpx.Client", lambda **kwargs:
+                        original_client(**kwargs, transport=httpx.MockTransport(handle)))
+    return state
+
+
 def response(loras=None, diffusion=None):
     return httpx.Response(200, json={
         "LoraLoader": {"input": {"required": {"lora_name": [loras if loras is not None else ["b.safetensors", "a.safetensors", "a.safetensors", "", 1]]}}},
@@ -149,7 +176,7 @@ def test_model_inputs_are_automatic_and_preserve_manual_configuration():
     assert workflow["2"]["inputs"]["unet_name"] == "base.safetensors"
 
 
-def test_model_catalog_http_api_only_returns_names(monkeypatch):
+def test_model_catalog_http_api_returns_names_and_safe_metadata(monkeypatch):
     monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response())
     server = ThreadingHTTPServer(("127.0.0.1", 0), LocalHandler)
     server.store = Store()
@@ -163,8 +190,99 @@ def test_model_catalog_http_api_only_returns_names(monkeypatch):
             payload = result.read().decode()
             assert result.status == 200
         assert json.loads(payload)["models"]["lora"] == ["a.safetensors", "b.safetensors"]
+        assert json.loads(payload)["model_metadata"]["lora"]["a.safetensors"] == {"base_model": ""}
         assert "test-secret" not in payload and "/proxy/" not in payload
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_lora_tags_match_the_exact_version_file_and_keep_submission_values(monkeypatch, resource_api):
+    names = ["COS.safetensors", "models/loras/sub/style-v2.safetensors", "unlisted.safetensors"]
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(names, []))
+    resource_api["reply"] = lambda request: resources([
+        lora_record(("models/loras/COS.safetensors", "qwen-image-2.1")),
+        lora_record(("models/loras/otherCOS.safetensors", "krea2")),
+        lora_record(("models/loras/sub/style-v1.safetensors", "SD 1.5"),
+                    ("models\\loras\\sub\\style-v2.safetensors", "Flux2-Klein-9B")),
+        lora_record(("models/loras/elsewhere/unlisted.safetensors", "SDXL")),
+    ])
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["models"]["lora"] == sorted(names, key=str.casefold)
+    assert result["model_metadata"]["lora"] == {
+        "COS.safetensors": {"base_model": "qwen-image-2.1"},
+        "models/loras/sub/style-v2.safetensors": {"base_model": "Flux2-Klein-9B"},
+        "unlisted.safetensors": {"base_model": ""},
+    }
+    queries = [json.loads(request.content) for request in resource_api["requests"]]
+    assert {query["resourceName"] for query in queries} == {"COS.safetensors", "style-v2.safetensors", "unlisted.safetensors"}
+    assert all(query["resourceType"] == "LORA" for query in queries)
+    assert "test-secret" not in json.dumps(result)
+
+
+def test_lora_tags_consider_later_search_pages_and_conflicting_file_names(monkeypatch, resource_api):
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(["style.safetensors"], []))
+
+    def reply(request):
+        page = json.loads(request.content)["current"]
+        label = "qwen-image-2.1" if page == 1 else "SDXL"
+        return resources([lora_record(("models/loras/style.safetensors", label))], pages=2, has_next=page == 1)
+
+    resource_api["reply"] = reply
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["model_metadata"]["lora"]["style.safetensors"]["base_model"] == ""
+    assert len(resource_api["requests"]) == 2
+
+
+@pytest.mark.parametrize("failure", ["auth", "network", "timeout", "html", "schema", "incomplete", "secret", "url", "missing"])
+def test_metadata_failures_preserve_favorites_and_never_leak_credentials(monkeypatch, resource_api, failure):
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(["style.safetensors"], ["base.safetensors"]))
+
+    def reply(request):
+        if failure == "network":
+            raise httpx.ConnectError("Authorization: Bearer test-secret-a")
+        if failure == "timeout":
+            raise httpx.ReadTimeout("test-secret-a")
+        if failure == "auth":
+            return httpx.Response(401, text="test-secret-a")
+        if failure == "html":
+            return httpx.Response(200, text="test-secret-a")
+        if failure == "schema":
+            return httpx.Response(200, json={"code": 0, "data": "test-secret-a"})
+        label = {"secret": "test-secret-a", "url": "https://example.test/proxy/key", "missing": ""}.get(failure, "SDXL")
+        return resources([lora_record(("models/loras/style.safetensors", label))], pages=99, has_next=True) if failure == "incomplete" else resources([lora_record(("style.safetensors", label))])
+
+    resource_api["reply"] = reply
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["models"] == {"lora": ["style.safetensors"], "diffusion": ["base.safetensors"]}
+    assert result["model_metadata"]["lora"]["style.safetensors"]["base_model"] == ""
+    assert "test-secret" not in json.dumps(result) and "/proxy/" not in json.dumps(result)
+
+
+def test_metadata_cache_is_copied_refreshed_and_owned_by_selected_account(monkeypatch, resource_api):
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(["style.safetensors"], []))
+    resource_api["reply"] = lambda request: resources([lora_record(("style.safetensors", "qwen-image-2.1" if request.headers["Authorization"] == "Bearer test-secret-a" else "SDXL"))])
+    catalog = FavoriteModelCatalog()
+    first = catalog.list_models(Store(), "a")
+    first["model_metadata"]["lora"]["style.safetensors"]["base_model"] = "changed locally"
+    assert catalog.list_models(Store(), "a")["model_metadata"]["lora"]["style.safetensors"]["base_model"] == "qwen-image-2.1"
+    assert len(resource_api["requests"]) == 1
+    other = catalog.list_models(Store(), "b")
+    assert other["model_metadata"]["lora"]["style.safetensors"]["base_model"] == "SDXL"
+    assert resource_api["requests"][-1].url.host == "www.runninghub.ai"
+    resource_api["reply"] = lambda request: resources([lora_record(("style.safetensors", "Flux2-Klein-9B"))])
+    assert catalog.list_models(Store(), "a", refresh=True)["model_metadata"]["lora"]["style.safetensors"]["base_model"] == "Flux2-Klein-9B"
+
+
+def test_metadata_work_is_bounded_and_leaves_every_favorite_selectable(monkeypatch, resource_api):
+    names = ["a.safetensors", "b.safetensors", "c.safetensors"]
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(names, []))
+    monkeypatch.setattr("backend.model_catalog.METADATA_MAX_MODELS", 2)
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["models"]["lora"] == names and len(resource_api["requests"]) == 2
+    assert result["model_metadata"]["lora"]["c.safetensors"]["base_model"] == ""
+    resource_api["requests"].clear()
+    monkeypatch.setattr("backend.model_catalog.METADATA_SECONDS", 0)
+    FavoriteModelCatalog().list_models(Store())
+    assert not resource_api["requests"]

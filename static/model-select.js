@@ -38,6 +38,18 @@
       control.appendChild(option(value, value || "请选择模型"));
     }
     control.value = value;
+    updateTitle(control);
+  }
+
+  function updateTitle(control) {
+    control.title = control.tagName === "SELECT" && control.selectedOptions.length ? control.selectedOptions[0].textContent : control.value;
+  }
+
+  function modelLabel(wrapper, name) {
+    if (wrapper.dataset.modelType !== "lora") return name;
+    var info = (wrapper._modelMetadata || {})[name];
+    var baseModel = info && typeof info.base_model === "string" && info.base_model.trim();
+    return "[" + (baseModel || "适配模型未知") + "] " + name;
   }
 
   function populate(wrapper) {
@@ -51,8 +63,9 @@
     control.textContent = "";
     control.appendChild(option("", emptyLabel, Boolean(value)));
     if (value && choices.indexOf(value) === -1) control.appendChild(option(value, value + "（当前值）"));
-    choices.forEach(function (name) { control.appendChild(option(name, name)); });
+    choices.forEach(function (name) { control.appendChild(option(name, modelLabel(wrapper, name))); });
     control.value = value;
+    updateTitle(control);
   }
 
   function requestCatalog(accountId, refresh) {
@@ -69,7 +82,7 @@
         if (!data.models || !Array.isArray(data.models.lora) || !Array.isArray(data.models.diffusion)) throw new Error("模型列表格式无效");
         entry.pending = false;
         entry.at = Date.now();
-        return data.models;
+        return data;
       });
     }).catch(function (error) {
       if (catalogs[accountId] === entry) delete catalogs[accountId];
@@ -86,14 +99,16 @@
     wrapper.dataset.modelState = "loading";
     // A different account must never display the previous account's choices.
     wrapper._modelChoices = [];
+    wrapper._modelMetadata = {};
     wrapper.setAttribute("aria-busy", "true");
     var button = wrapper.querySelector(".model-refresh");
     button.disabled = true;
     button.textContent = "读取中";
     populate(wrapper);
-    requestCatalog(accountId, refresh).then(function (models) {
+    requestCatalog(accountId, refresh).then(function (catalog) {
       if (!wrapper.isConnected || wrapper._modelRevision !== revision) return;
-      wrapper._modelChoices = models[wrapper.dataset.modelType];
+      wrapper._modelChoices = catalog.models[wrapper.dataset.modelType];
+      wrapper._modelMetadata = (catalog.model_metadata || {})[wrapper.dataset.modelType] || {};
       wrapper.dataset.modelState = "ready";
       button.textContent = "刷新";
       button.title = "刷新此账号的收藏模型";
@@ -134,6 +149,9 @@
       wrapper._modelAccount = accountResolver;
       if (!wrapper._modelBound) {
         wrapper._modelBound = true;
+        wrapper.addEventListener("change", function (event) {
+          if (event.target.classList.contains("model-value")) updateTitle(event.target);
+        });
         wrapper.querySelector(".model-refresh").addEventListener("click", function () {
           if (!wrapper.closest(".is-bypassed")) load(wrapper, true);
         });
