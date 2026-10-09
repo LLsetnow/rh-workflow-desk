@@ -15,6 +15,8 @@ from rh_cli.http import get_site_config
 
 MODEL_FIELDS = {"lora_name": "lora", "unet_name": "diffusion"}
 MODEL_NODES = {"lora": ("LoraLoader", "lora_name"), "diffusion": ("UNETLoader", "unet_name")}
+MODEL_RESOURCES = {"lora": ("LORA", ("models/loras/",)),
+                   "diffusion": ("UNET", ("models/unet/", "models/diffusion_models/"))}
 CACHE_SECONDS = 300
 METADATA_SECONDS = 12
 METADATA_MAX_MODELS = 64
@@ -72,13 +74,18 @@ def _fetch_models(key: dict[str, Any]) -> dict[str, list[str]]:
     return models
 
 
-def _lora_path(value: str) -> str:
-    return value.replace("\\", "/").removeprefix("models/loras/")
+def _model_path(value: str, model_type: str) -> str:
+    path = value.replace("\\", "/")
+    for prefix in MODEL_RESOURCES[model_type][1]:
+        if path.startswith(prefix):
+            return path[len(prefix):]
+    return path
 
 
-def _fetch_lora_tag(client: httpx.Client, name: str, secret: str, deadline: float) -> str:
+def _fetch_model_tag(client: httpx.Client, model_type: str, name: str, secret: str, deadline: float) -> str:
     """Only label an exact version file after checking every search-result page."""
-    path = _lora_path(name)
+    path = _model_path(name, model_type)
+    resource_type = MODEL_RESOURCES[model_type][0]
     labels: set[str] = set()
     try:
         for page in range(1, METADATA_MAX_PAGES + 1):
@@ -86,7 +93,7 @@ def _fetch_lora_tag(client: httpx.Client, name: str, secret: str, deadline: floa
             if remaining <= 0:
                 return ""
             response = client.post("/openapi/v2/resource/list", json={
-                "resourceType": "LORA", "resourceName": path.rsplit("/", 1)[-1],
+                "resourceType": resource_type, "resourceName": path.rsplit("/", 1)[-1],
                 "current": page, "size": 50,
             }, timeout=min(6, remaining))
             if response.status_code != 200:
@@ -99,13 +106,13 @@ def _fetch_lora_tag(client: httpx.Client, name: str, secret: str, deadline: floa
             if not isinstance(records, list):
                 return ""
             for record in records:
-                if not isinstance(record, dict) or record.get("resourceType") != "LORA":
+                if not isinstance(record, dict) or record.get("resourceType") != resource_type:
                     continue
                 for version in record.get("versions") or []:
                     if not isinstance(version, dict):
                         continue
                     filename = version.get("versionResourceName")
-                    if not isinstance(filename, str) or _lora_path(filename) != path:
+                    if not isinstance(filename, str) or _model_path(filename, model_type) != path:
                         continue
                     label = version.get("baseModel")
                     if (not isinstance(label, str) or not label.strip() or len(label) > 128 or
@@ -127,19 +134,21 @@ def _fetch_lora_tag(client: httpx.Client, name: str, secret: str, deadline: floa
 
 
 def _fetch_metadata(key: dict[str, Any], models: dict[str, list[str]]) -> dict[str, dict[str, dict[str, str]]]:
-    names = models["lora"]
-    metadata = {"lora": {name: {"base_model": ""} for name in names}}
-    if not names:
+    metadata = {kind: {name: {"base_model": ""} for name in models[kind]} for kind in MODEL_RESOURCES}
+    # Interleave kinds so a large LoRA collection cannot consume the entire
+    # query budget before the first diffusion model is inspected.
+    queried = [(kind, models[kind][index]) for index in range(METADATA_MAX_MODELS)
+               for kind in MODEL_RESOURCES if index < len(models[kind])]
+    if not queried:
         return metadata
     secret = str(key["api_key"])
     host = get_site_config(str(key.get("site") or "ai"))["api_host"]
     deadline = time.monotonic() + METADATA_SECONDS
     with httpx.Client(base_url=host, headers={"Authorization": f"Bearer {secret}"}, follow_redirects=False) as client:
         with ThreadPoolExecutor(max_workers=4) as pool:
-            queried = names[:METADATA_MAX_MODELS]
-            labels = pool.map(lambda name: _fetch_lora_tag(client, name, secret, deadline), queried)
-            for name, label in zip(queried, labels):
-                metadata["lora"][name]["base_model"] = label
+            labels = pool.map(lambda item: _fetch_model_tag(client, item[0], item[1], secret, deadline), queried)
+            for (kind, name), label in zip(queried, labels):
+                metadata[kind][name]["base_model"] = label
     return metadata
 
 

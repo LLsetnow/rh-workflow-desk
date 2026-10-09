@@ -39,7 +39,11 @@ def resources(records=None, *, pages=1, has_next=False):
 
 
 def lora_record(*versions):
-    return {"resourceType": "LORA", "versions": [
+    return model_record("LORA", *versions)
+
+
+def model_record(resource_type, *versions):
+    return {"resourceType": resource_type, "versions": [
         {"versionResourceName": filename, "baseModel": label} for filename, label in versions
     ]}
 
@@ -191,6 +195,7 @@ def test_model_catalog_http_api_returns_names_and_safe_metadata(monkeypatch):
             assert result.status == 200
         assert json.loads(payload)["models"]["lora"] == ["a.safetensors", "b.safetensors"]
         assert json.loads(payload)["model_metadata"]["lora"]["a.safetensors"] == {"base_model": ""}
+        assert json.loads(payload)["model_metadata"]["diffusion"]["base.safetensors"] == {"base_model": ""}
         assert "test-secret" not in payload and "/proxy/" not in payload
     finally:
         server.shutdown()
@@ -261,28 +266,85 @@ def test_metadata_failures_preserve_favorites_and_never_leak_credentials(monkeyp
 
 
 def test_metadata_cache_is_copied_refreshed_and_owned_by_selected_account(monkeypatch, resource_api):
-    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(["style.safetensors"], []))
-    resource_api["reply"] = lambda request: resources([lora_record(("style.safetensors", "qwen-image-2.1" if request.headers["Authorization"] == "Bearer test-secret-a" else "SDXL"))])
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(["style.safetensors"], ["style.safetensors"]))
+    resource_api["reply"] = lambda request: resources([model_record(json.loads(request.content)["resourceType"], ("style.safetensors", "qwen-image-2.1" if request.headers["Authorization"] == "Bearer test-secret-a" else "SDXL"))])
     catalog = FavoriteModelCatalog()
     first = catalog.list_models(Store(), "a")
     first["model_metadata"]["lora"]["style.safetensors"]["base_model"] = "changed locally"
+    first["model_metadata"]["diffusion"]["style.safetensors"]["base_model"] = "changed locally"
     assert catalog.list_models(Store(), "a")["model_metadata"]["lora"]["style.safetensors"]["base_model"] == "qwen-image-2.1"
-    assert len(resource_api["requests"]) == 1
+    assert catalog.list_models(Store(), "a")["model_metadata"]["diffusion"]["style.safetensors"]["base_model"] == "qwen-image-2.1"
+    assert len(resource_api["requests"]) == 2
     other = catalog.list_models(Store(), "b")
     assert other["model_metadata"]["lora"]["style.safetensors"]["base_model"] == "SDXL"
+    assert other["model_metadata"]["diffusion"]["style.safetensors"]["base_model"] == "SDXL"
     assert resource_api["requests"][-1].url.host == "www.runninghub.ai"
-    resource_api["reply"] = lambda request: resources([lora_record(("style.safetensors", "Flux2-Klein-9B"))])
+    resource_api["reply"] = lambda request: resources([model_record(json.loads(request.content)["resourceType"], ("style.safetensors", "Flux2-Klein-9B"))])
     assert catalog.list_models(Store(), "a", refresh=True)["model_metadata"]["lora"]["style.safetensors"]["base_model"] == "Flux2-Klein-9B"
+    assert catalog.list_models(Store(), "a")["model_metadata"]["diffusion"]["style.safetensors"]["base_model"] == "Flux2-Klein-9B"
 
 
 def test_metadata_work_is_bounded_and_leaves_every_favorite_selectable(monkeypatch, resource_api):
     names = ["a.safetensors", "b.safetensors", "c.safetensors"]
-    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(names, []))
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(names, names))
     monkeypatch.setattr("backend.model_catalog.METADATA_MAX_MODELS", 2)
     result = FavoriteModelCatalog().list_models(Store())
-    assert result["models"]["lora"] == names and len(resource_api["requests"]) == 2
+    assert result["models"]["lora"] == names and result["models"]["diffusion"] == names
+    assert len(resource_api["requests"]) == 4
     assert result["model_metadata"]["lora"]["c.safetensors"]["base_model"] == ""
+    assert result["model_metadata"]["diffusion"]["c.safetensors"]["base_model"] == ""
     resource_api["requests"].clear()
     monkeypatch.setattr("backend.model_catalog.METADATA_SECONDS", 0)
     FavoriteModelCatalog().list_models(Store())
     assert not resource_api["requests"]
+
+
+def test_diffusion_tags_match_unet_versions_without_reusing_lora_tags(monkeypatch, resource_api):
+    names = ["same.safetensors", "models/diffusion_models/sub/base-v2.safetensors"]
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response(["same.safetensors"], names))
+    resource_api["reply"] = lambda request: resources([
+        lora_record(("models/loras/same.safetensors", "qwen-image-2.1")),
+        model_record("UNET", ("models/unet/same.safetensors", "minimax-h3")),
+        model_record("UNET", ("models/loras/same.safetensors", "wrong folder")),
+        model_record("UNET", ("models/unet/sub/base-v1.safetensors", "SDXL"),
+                     ("models\\diffusion_models\\sub\\base-v2.safetensors", "Flux2-Klein-9B")),
+    ])
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["models"]["diffusion"] == sorted(names, key=str.casefold)
+    assert result["model_metadata"]["lora"]["same.safetensors"] == {"base_model": "qwen-image-2.1"}
+    assert result["model_metadata"]["diffusion"] == {
+        "same.safetensors": {"base_model": "minimax-h3"},
+        "models/diffusion_models/sub/base-v2.safetensors": {"base_model": "Flux2-Klein-9B"},
+    }
+    assert {json.loads(request.content)["resourceType"] for request in resource_api["requests"]} == {"LORA", "UNET"}
+
+
+def test_diffusion_tag_conflicts_and_private_models_remain_selectable(monkeypatch, resource_api):
+    names = ["same.safetensors", "private.safetensors"]
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response([], names))
+    resource_api["reply"] = lambda request: resources([
+        model_record("UNET", ("models/unet/same.safetensors", "Qwen-image")),
+        model_record("UNET", ("models/unet/same.safetensors", "Other")),
+        lora_record(("models/loras/private.safetensors", "SDXL")),
+    ])
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["models"]["diffusion"] == sorted(names, key=str.casefold)
+    assert all(not item["base_model"] for item in result["model_metadata"]["diffusion"].values())
+
+
+@pytest.mark.parametrize("failure", ["timeout", "auth", "secret"])
+def test_diffusion_metadata_failure_does_not_discard_choices(monkeypatch, resource_api, failure):
+    monkeypatch.setattr("backend.model_catalog.httpx.get", lambda *args, **kwargs: response([], ["base.safetensors"]))
+
+    def reply(request):
+        if failure == "timeout":
+            raise httpx.ReadTimeout("test-secret-a")
+        if failure == "auth":
+            return httpx.Response(403, text="test-secret-a")
+        return resources([model_record("UNET", ("models/unet/base.safetensors", "test-secret-a"))])
+
+    resource_api["reply"] = reply
+    result = FavoriteModelCatalog().list_models(Store())
+    assert result["models"]["diffusion"] == ["base.safetensors"]
+    assert result["model_metadata"]["diffusion"]["base.safetensors"] == {"base_model": ""}
+    assert "test-secret" not in json.dumps(result)

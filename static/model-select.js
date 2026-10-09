@@ -51,14 +51,13 @@
   }
 
   function modelLabel(wrapper, name) {
-    if (wrapper.dataset.modelType !== "lora") return name;
     var baseModel = baseModelFor(wrapper, name);
-    return "[" + (baseModel || "适配模型未知") + "] " + name;
+    var unknown = wrapper.dataset.modelType === "lora" ? "适配模型未知" : "模型种类未知";
+    return "[" + (baseModel || unknown) + "] " + name;
   }
 
   function sortedChoices(wrapper) {
     var choices = (wrapper._modelChoices || []).slice();
-    if (wrapper.dataset.modelType !== "lora") return choices;
     return choices.sort(function (left, right) {
       var leftBase = baseModelFor(wrapper, left);
       var rightBase = baseModelFor(wrapper, right);
