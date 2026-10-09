@@ -45,18 +45,34 @@
     control.title = control.tagName === "SELECT" && control.selectedOptions.length ? control.selectedOptions[0].textContent : control.value;
   }
 
+  function baseModelFor(wrapper, name) {
+    var info = (wrapper._modelMetadata || {})[name];
+    return info && typeof info.base_model === "string" ? info.base_model.trim() : "";
+  }
+
   function modelLabel(wrapper, name) {
     if (wrapper.dataset.modelType !== "lora") return name;
-    var info = (wrapper._modelMetadata || {})[name];
-    var baseModel = info && typeof info.base_model === "string" && info.base_model.trim();
+    var baseModel = baseModelFor(wrapper, name);
     return "[" + (baseModel || "适配模型未知") + "] " + name;
+  }
+
+  function sortedChoices(wrapper) {
+    var choices = (wrapper._modelChoices || []).slice();
+    if (wrapper.dataset.modelType !== "lora") return choices;
+    return choices.sort(function (left, right) {
+      var leftBase = baseModelFor(wrapper, left);
+      var rightBase = baseModelFor(wrapper, right);
+      if (Boolean(leftBase) !== Boolean(rightBase)) return leftBase ? -1 : 1;
+      return leftBase.localeCompare(rightBase, "en", { sensitivity: "base" }) ||
+        left.localeCompare(right, "en", { sensitivity: "base" }) || left.localeCompare(right, "en");
+    });
   }
 
   function populate(wrapper) {
     var control = wrapper.querySelector(".model-value");
     if (control.tagName !== "SELECT") return;
     var value = control.value;
-    var choices = wrapper._modelChoices || [];
+    var choices = sortedChoices(wrapper);
     var state = wrapper.dataset.modelState;
     var emptyLabel = state === "loading" ? "正在读取收藏模型…" :
       state === "error" ? "读取失败，可重试或手动输入" : choices.length ? "请选择模型" : "暂无收藏模型，可手动输入";
