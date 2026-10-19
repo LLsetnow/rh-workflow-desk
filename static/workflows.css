@@ -119,6 +119,7 @@
 .workflow-editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .workflow-editor-note { padding: 10px 11px; border: 1px solid var(--line-soft); border-radius: 9px; color: var(--subtle); background: var(--surface-deep); font-size: 9px; line-height: 1.55; }
 .workflow-editor-config { margin-top: 4px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.workflow-editor-config input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), .workflow-editor-config select, .workflow-editor-config textarea { box-sizing: border-box; height: var(--control-compact-height); min-height: var(--control-compact-height); }
 .workflow-editor-json { margin-top: 4px; padding-top: 18px; }
 .workflow-editor-json-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .workflow-editor-json-heading > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
@@ -147,7 +148,7 @@
 .workflow-config-remove:hover { color: var(--danger); }
 .workflow-config-item-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .72fr) minmax(0, 1fr); align-items: end; gap: 9px; margin-top: 11px; }
 .workflow-config-item-grid input, .workflow-config-item-grid select, .workflow-config-item-grid textarea { min-height: var(--control-compact-height); margin-top: 6px; font-size: var(--control-compact-font-size); }
-.workflow-config-item-grid textarea { min-height: 58px; resize: vertical; }
+.workflow-config-item-grid textarea { padding: 8px 12px; line-height: 16px; resize: none; }
 .workflow-config-name-control { display: flex; min-width: 0; align-items: center; gap: 7px; margin-top: 6px; }
 .workflow-config-name-control > input { min-width: 0; flex: 1 1 auto; margin-top: 0; }
 .workflow-config-required { position: relative; display: inline-flex; min-height: 24px; align-items: center; gap: 6px; margin-top: 0; color: var(--muted); font-size: 9px; white-space: nowrap; cursor: pointer; user-select: none; }
