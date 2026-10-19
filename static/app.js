@@ -3116,12 +3116,6 @@
     return { workflow: workflow, content: JSON.stringify(workflow, null, 2) + "\n" };
   }
 
-  function restoreWorkflowJson() {
-    if (!workflowEditor) return;
-    $("workflowEditorJson").value = workflowEditor.savedContent || workflowEditor.content || "";
-    setWorkflowJsonStatus("已恢复到打开编辑器时的 JSON。", false);
-  }
-
   function prepareWorkflowEditorWorkflow(parsed, config) {
     var workflow = parsed.workflow;
     var remoteWorkflowId = $("workflowRecordRemoteId").value.trim();
@@ -3735,7 +3729,6 @@
       appState.configEditor = null;
       window.RHMotion.closeModal("workflowEditorModal");
     });
-    $("restoreWorkflowJson").addEventListener("click", restoreWorkflowJson);
     $("mediaInputType").addEventListener("change", updateMediaInputModalCopy);
     $("confirmMediaInput").addEventListener("click", addMediaInputNode);
     $("closeMediaInput").addEventListener("click", closeMediaInputModal);

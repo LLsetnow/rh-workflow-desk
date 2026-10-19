@@ -306,23 +306,6 @@
     }
     return { workflow: workflow, content: JSON.stringify(workflow, null, 2) };
   }
-  function saveWorkflowJson() {
-    var editor = state.editor;
-    if (!editor) return;
-    var parsed = readEditorJson();
-    if (!parsed) return;
-    var button = $("saveWorkflowJson");
-    button.disabled = true;
-    editor.content = parsed.content;
-    $("workflowEditorJson").value = parsed.content;
-    showToast("JSON 已应用到临时快照；点击“保存到工作流库”创建新库条目");
-    button.disabled = false;
-  }
-  function restoreWorkflowJson() {
-    if (!state.editor) return;
-    $("workflowEditorJson").value = state.editor.savedContent || state.editor.content || "";
-    showToast("已复原到最近一次保存的 JSON");
-  }
   function saveWorkflowRecord(event) {
     event.preventDefault();
     if (!state.editor) return;
@@ -1388,8 +1371,6 @@
     $("closeWorkflowEditor").addEventListener("click", function () { state.editor = null; window.RHMotion.closeModal("workflowEditorModal"); });
     $("cancelWorkflowEditor").addEventListener("click", function () { state.editor = null; window.RHMotion.closeModal("workflowEditorModal"); });
     $("workflowEditorModal").addEventListener("click", function (event) { if (event.target === this) window.RHMotion.closeModal("workflowEditorModal"); });
-    $("saveWorkflowJson").addEventListener("click", saveWorkflowJson);
-    $("restoreWorkflowJson").addEventListener("click", restoreWorkflowJson);
     $("workflowConfigMode").addEventListener("change", function () {
       if (!state.configEditor) return;
       state.configEditor.mode = this.value === "manual" ? "manual" : "auto";

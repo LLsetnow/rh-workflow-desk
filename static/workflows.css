@@ -126,8 +126,6 @@
 .workflow-editor-json-heading .field-hint { color: var(--subtle); font-size: 9px; line-height: 1.5; }
 .workflow-editor-json textarea { display: block; width: 100%; min-height: 320px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); background: var(--surface-deep-strong); font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; line-height: 1.6; resize: vertical; }
 .workflow-editor-json textarea:focus { border-color: var(--accent); outline: 2px solid var(--accent-fill); outline-offset: 1px; }
-.workflow-editor-json-actions { display: flex; flex-direction: row; align-items: stretch; justify-content: flex-end; gap: 7px; flex: 0 0 auto; }
-.workflow-editor-json-actions > button { width: 68px; min-width: 68px; justify-content: center; }
 .workflow-config-mode { display: grid; gap: 7px; margin-top: 19px; }
 .workflow-config-mode select { padding-right: 28px; }
 .workflow-config-builder { margin-top: 16px; padding: 13px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface-deep); }
