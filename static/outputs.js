@@ -772,7 +772,9 @@
   function artifactTagsMarkup(item) {
     var tags = [];
     var feature = outputFeatureKey(item);
-    tags.push('<span class="artifact-feature-tag" title="功能：' + esc(outputFeatureLabel(feature)) + '" aria-label="功能：' + esc(outputFeatureLabel(feature)) + '">' + esc(outputFeatureLabel(feature)) + '</span>');
+    if (feature !== "workflow") {
+      tags.push('<span class="artifact-feature-tag" title="功能：' + esc(outputFeatureLabel(feature)) + '" aria-label="功能：' + esc(outputFeatureLabel(feature)) + '">' + esc(outputFeatureLabel(feature)) + '</span>');
+    }
     if (hasOutputTag(item, "案例")) tags.push('<span class="artifact-tag artifact-tag-case" title="案例" aria-label="案例">案例</span>');
     if (hasOutputTag(item, "H")) tags.push('<span class="artifact-tag artifact-tag-h" title="H" aria-label="H">H</span>');
     return tags.join("");
@@ -2094,8 +2096,9 @@
       if (outputPreviewIsOpen()) closeOutputPreview();
       showToast("任务记录已删除");
     }).catch(function (error) {
-      if (button) button.disabled = false;
       showToast(error.message, true);
+    }).finally(function () {
+      if (button) button.disabled = false;
     });
   }
   function handleOutputKeyboardShortcut(event) {
