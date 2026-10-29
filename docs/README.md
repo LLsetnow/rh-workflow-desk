@@ -9,6 +9,7 @@
 - [本地开发与验证](./development.md)：启动、测试、语法检查和提交前检查清单。
 - [提示词工坊翻译](./translation.md)：阿里云翻译配置、字段和英文导出规则。
 - [MiniMax H3 提示词 Agent 指南](./h3-prompt-agent-guide.md)：优先复用 `ref` JSON 媒体卡片和文本积木，按 H3 规则生成提示词。
+- [图生视频首帧保真度测量](./first-frame-fidelity.md)：比较参考图与视频首个解码画面的结构、像素和色彩差异。
 - [Telegram 成片推送](./telegram.md)：任务完成后的 Bot 推送、配置和重试规则。
 
 ## 维护规则

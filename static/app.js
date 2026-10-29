@@ -1747,7 +1747,7 @@
       '<input class="file-picker" data-input-id="' + esc(item.id) + '" type="file" accept="' + accept + '" hidden />' + pasteButton + '</div>' +
       '<div class="input-control-row"><input class="file-path" data-input-id="' + esc(item.id) + '" data-original-value="' + esc(String(item.default || "")) + '" type="text" placeholder="输入本机绝对路径（不会复制文件）" value="' + esc(/^(\/|[A-Za-z]:[\\/])/.test(String(item.default || "")) ? String(item.default || "") : "") + '" /><button class="file-button native-file-button" data-action="pick-native-file" data-input-id="' + esc(item.id) + '" type="button">选择文件</button><button class="file-button open-file-folder-button" data-action="open-file-folder" data-input-id="' + esc(item.id) + '" type="button" title="打开文件所在文件夹" aria-label="打开文件所在文件夹">打开文件</button></div>' + socialSource +
       '<div class="file-meta" data-meta-id="' + esc(item.id) + '">点击“选择文件”后，这里会显示本机绝对路径；输入文件不会复制到项目目录。</div></div>' +
-      '<figure class="file-preview" data-preview-id="' + esc(item.id) + '" data-expected-preview-kind="' + kind + '" draggable="true" title="拖动此预览到其他文件输入以替换" aria-label="' + label + '，可拖动到其他文件输入替换" hidden><figcaption>' + label + '</figcaption><div class="file-preview-frame">' + mediaMarkup + '</div><div class="file-preview-name"></div></figure></div></div>';
+      '<figure class="file-preview" data-preview-id="' + esc(item.id) + '" data-expected-preview-kind="' + kind + '" draggable="true" title="拖动此预览到其他文件输入以替换" aria-label="' + label + '，可拖动到其他文件输入替换" hidden><div class="file-preview-caption"><figcaption>' + label + '</figcaption><span class="file-preview-dimensions" aria-label="图片分辨率" aria-live="polite" hidden></span></div><div class="file-preview-frame">' + mediaMarkup + '</div><div class="file-preview-name"></div></figure></div></div>';
   }
 
   var workflowConfigKinds = [
@@ -2467,10 +2467,46 @@
       audio.hidden = true;
       try { audio.load(); } catch (error) {}
     }
+    resetFilePreviewDimensions(preview);
     preview.querySelector(".file-preview-name").textContent = "";
     preview.dataset.previewKind = "";
     preview.hidden = true;
     delete previewFiles[inputId];
+  }
+
+  function resetFilePreviewDimensions(preview) {
+    var dimensions = preview && preview.querySelector(".file-preview-dimensions");
+    if (!dimensions) return;
+    dimensions.textContent = "";
+    dimensions.hidden = true;
+  }
+
+  function updateFilePreviewDimensions(preview, image) {
+    var dimensions = preview && preview.querySelector(".file-preview-dimensions");
+    if (!dimensions) return;
+    var width = Number(image && image.naturalWidth || 0);
+    var height = Number(image && image.naturalHeight || 0);
+    if (preview.dataset.previewKind !== "image" || !image || !image.complete || width <= 0 || height <= 0) {
+      resetFilePreviewDimensions(preview);
+      return;
+    }
+    dimensions.textContent = width + " × " + height + " px";
+    dimensions.hidden = false;
+  }
+
+  function bindFilePreviewImageDimensions(preview, image) {
+    if (!preview || !image) return;
+    if (image.dataset.filePreviewDimensionsBound !== "true") {
+      image.addEventListener("load", function () {
+        var owner = image.closest(".file-preview");
+        updateFilePreviewDimensions(owner, image);
+      });
+      image.addEventListener("error", function () {
+        var owner = image.closest(".file-preview");
+        updateFilePreviewDimensions(owner, image);
+      });
+      image.dataset.filePreviewDimensionsBound = "true";
+    }
   }
 
   function pickNativeInput(inputId, button) {
@@ -2727,6 +2763,7 @@
     if (image) {
       image.hidden = kind !== "image";
       if (kind === "image") {
+        bindFilePreviewImageDimensions(preview, image);
         image.src = selected.preview_url;
         image.alt = selected.name || "输入图片预览";
       }
@@ -2846,6 +2883,7 @@
   function updateImagePreview(inputId, file) {
     var preview = document.querySelector('.file-preview[data-preview-id="' + CSS.escape(inputId) + '"]');
     if (!preview) return;
+    resetFilePreviewDimensions(preview);
     if (previewUrls[inputId] && previewUrls[inputId].indexOf("blob:") === 0) URL.revokeObjectURL(previewUrls[inputId]);
     previewUrls[inputId] = "";
     var filename = String(file && file.name || "");
@@ -2878,6 +2916,7 @@
     if (image) {
       image.hidden = kind !== "image";
       if (kind === "image") {
+        bindFilePreviewImageDimensions(preview, image);
         image.src = url;
         image.alt = filename || "输入图片预览";
       }

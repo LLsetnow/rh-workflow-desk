@@ -78,5 +78,8 @@
       "createDesktopShortcut": true,
       "shortcutName": "RH Workflow Desk"
     }
+  },
+  "dependencies": {
+    "@hyperframes/studio": "^0.8.191"
   }
 }
