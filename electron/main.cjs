@@ -125,9 +125,9 @@ async function readAccountSession(accountWindow) {
       };
       return {
         loggedIn,
-        loginCoinTriggered: Boolean(value("loginCoinTriggered")),
-        loginDailyCoin: value("loginDailyCoin", "dailyGold", "DailyGold"),
-        balance: value("remainCoins", "coins", "totalCoin", "virtualCoin", "gold", "rhCoins"),
+        loginCoinTriggered: Boolean(value("loginPointTriggered", "loginCoinTriggered")),
+        loginDailyPoint: value("loginDailyPoint", "dailyPoint", "dailyPoints", "loginDailyCoin", "dailyGold", "DailyGold"),
+        balance: value("remainPoint", "points", "remainCoins", "coins", "totalCoin", "virtualCoin", "gold", "rhCoins"),
         userId: userId ? String(userId) : "",
         href: location.href
       };
@@ -138,13 +138,14 @@ async function readAccountSession(accountWindow) {
 
 function accountStateFromSession(session, isCheckin) {
   const loggedIn = Boolean(session && session.loggedIn);
-  const reward = session && session.loginDailyCoin != null ? String(session.loginDailyCoin) : "";
+  const rewardValue = session && session.loginDailyPoint != null ? session.loginDailyPoint : session && session.loginDailyCoin;
+  const reward = rewardValue != null ? String(rewardValue) : "";
   const rewarded = Boolean(session && session.loginCoinTriggered) || Boolean(reward && reward !== "0");
   let status = "login_required";
   let message = "请在打开的 RunningHub 窗口完成登录";
   if (loggedIn && rewarded) {
     status = "checked_in";
-    message = reward ? `网站已返回今日登录奖励：${reward} RH 币` : "网站已返回今日登录奖励";
+    message = reward ? `网站已返回今日登录奖励：${reward} 积分` : "网站已返回今日登录奖励";
   } else if (loggedIn && isCheckin) {
     status = "not_checked_in";
     message = "已登录，但网站未返回今日登录奖励；如需重新认证，请在账号窗口完成登录后再试";
@@ -155,6 +156,7 @@ function accountStateFromSession(session, isCheckin) {
   return {
     status,
     status_message: message,
+    daily_points: reward,
     daily_coin: reward,
     balance: session && session.balance != null ? String(session.balance) : "",
     session
@@ -167,6 +169,7 @@ async function syncAccountWindow(account, accountWindow, isCheckin) {
   const changes = {
     status: state.status,
     status_message: state.status_message,
+    daily_points: state.daily_points,
     daily_coin: state.daily_coin,
     balance: state.balance,
     checked_at: Date.now()

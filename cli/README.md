@@ -264,13 +264,23 @@ rh --json app list --sort NEWEST
   "status": "ready",
   "key_prefix": "14cf****",
   "key_source": "env",
-  "balance": "929906.265",
-  "currency": "CNY",
-  "coins": "882663",
-  "running_tasks": "0",
-  "api_type": "SHARED"
+  "sites": [{
+    "site": "cn",
+    "remainPoint": "88.5",
+    "remainCoins": "99999",
+    "remainMoney": "999",
+    "currency": "CNY",
+    "apiType": "NORMAL",
+    "currentTaskCounts": "0"
+  }],
+  "balance_money": "999",
+  "balance_points": "88.5",
+  "balance_coins": "99999",
+  "running_tasks": "0"
 }
 ```
+
+账户状态优先读取官方新字段 `remainPoint`；`remainCoins` 和 `balance_coins` 仅保留为旧版 API 兼容字段。
 
 生成类命令（`model run` / `image` / `video` / `app run`）在 JSON 模式下输出统一结构：
 

@@ -43,10 +43,6 @@
     }).join(" · ");
   }
 
-  function coinsCostTitle(value) {
-    return window.RHCost && window.RHCost.coinsTooltip ? window.RHCost.coinsTooltip(value) : "";
-  }
-
   function moneySummaryTitle(items) {
     return window.RHCost && window.RHCost.moneySummaryTooltip ? window.RHCost.moneySummaryTooltip(items) : "";
   }
@@ -139,11 +135,12 @@
     var accountLabel = data.account_filter_name || "全部账号";
     var coinsSpent = $("dashboardCoinsSpent");
     var moneySpent = $("dashboardMoneySpent");
-    coinsSpent.textContent = formatNumber(summary.coins_spent, 4);
-    coinsSpent.title = coinsCostTitle(summary.coins_spent);
+    var pointsSpent = summary.points_spent == null ? summary.coins_spent : summary.points_spent;
+    coinsSpent.textContent = formatNumber(pointsSpent, 4);
+    coinsSpent.removeAttribute("title");
     moneySpent.textContent = formatMoneySpent(summary.money_spent);
     moneySpent.title = moneySummaryTitle(summary.money_spent);
-    $("dashboardCoinsMeta").textContent = accountLabel + " · 所选时间范围 · RH 币";
+    $("dashboardCoinsMeta").textContent = accountLabel + " · 所选时间范围 · 积分";
     $("dashboardSubmissions").textContent = String(summary.submissions || 0);
     $("dashboardSubmissionsMeta").textContent = accountLabel + " · 包含成功、失败和取消的提交";
     $("dashboardProcessing").textContent = formatDuration(summary.processing_seconds);
@@ -162,17 +159,18 @@
     var balances = data.balances || {};
     var keys = Array.isArray(balances.keys) ? balances.keys : [];
     var coinBalance = $("dashboardCoinBalance");
-    coinBalance.textContent = balances.coins == null || balances.coins === "" ? "—" : formatNumber(balances.coins, 4);
-    coinBalance.title = coinsCostTitle(balances.coins);
+    var pointsBalance = balances.points == null || balances.points === "" ? balances.coins : balances.points;
+    coinBalance.textContent = pointsBalance == null || pointsBalance === "" ? "—" : formatNumber(pointsBalance, 4);
+    coinBalance.removeAttribute("title");
     var accountCount = Number(balances.account_count || keys.length);
     var keyCount = Number(balances.key_count || keys.length);
     $("dashboardBalanceKeyCount").textContent = accountCount + " 个账号 · " + keyCount + " Key 去重";
     $("dashboardAccountBalances").innerHTML = keys.length ? keys.map(function (item) {
-      var coins = item.coins == null || item.coins === "" ? "—" : formatNumber(item.coins, 4);
+      var points = item.points == null || item.points === "" ? item.coins : item.points;
+      var pointText = points == null || points === "" ? "—" : formatNumber(points, 4);
       var balance = item.balance == null || item.balance === "" ? "—" : String(item.symbol || "") + formatNumber(item.balance, 4);
-      var coinTitle = coinsCostTitle(item.coins);
       var balanceTitle = moneyCostTitle({ cost_type: "money", cost: item.balance, key_site: item.site });
-      return '<div class="dashboard-account-balance" title="余额取自 ' + esc(item.key_name || item.name || "该账号") + '"><div class="dashboard-account-balance-meta"><strong>' + esc(item.account_name || "未绑定账号") + '</strong><span>' + esc(siteLabel(item.site)) + '</span></div><div class="dashboard-account-balance-values"><span class="dashboard-account-balance-value"><strong title="' + esc(coinTitle) + '">' + esc(coins) + '</strong><small>RH 币</small></span><span class="dashboard-account-balance-value"><strong title="' + esc(balanceTitle) + '">' + esc(balance) + '</strong><small>余额</small></span></div></div>';
+      return '<div class="dashboard-account-balance" title="余额取自 ' + esc(item.key_name || item.name || "该账号") + '"><div class="dashboard-account-balance-meta"><strong>' + esc(item.account_name || "未绑定账号") + '</strong><span>' + esc(siteLabel(item.site)) + '</span></div><div class="dashboard-account-balance-values"><span class="dashboard-account-balance-value"><strong>' + esc(pointText) + '</strong><small>积分</small></span><span class="dashboard-account-balance-value"><strong title="' + esc(balanceTitle) + '">' + esc(balance) + '</strong><small>余额</small></span></div></div>';
     }).join("") : '<div class="dashboard-account-balance-empty">暂无可用账号余额</div>';
     var checkedAt = numeric(balances.latest_checked_at);
     $("dashboardBalanceNote").textContent = checkedAt ? "最近查询：" + formatTimestamp(checkedAt) : "余额尚未成功查询，请到设置中刷新 API Key。";
@@ -245,7 +243,7 @@
   function recentCost(record) {
     var cost = String(record.cost || "").trim();
     if (!cost) return "费用未返回";
-    if (record.cost_type === "coins") return formatNumber(cost, 4) + " RH 币";
+    if (record.cost_type === "coins" || record.cost_type === "points") return formatNumber(cost, 4) + " 积分";
     var symbol = window.RHCost ? window.RHCost.moneySymbol(record) : (record.site === "cn" ? "¥" : "$");
     return symbol + formatNumber(cost, 4);
   }
@@ -260,7 +258,7 @@
     $("dashboardRecent").innerHTML = recent.map(function (record) {
       var availability = record.task_available ? "任务记录仍在库" : "原任务已删除，统计保留";
       var outputs = numeric(record.output_count);
-      var costTitle = record.cost_type === "coins" ? coinsCostTitle(record.cost) : moneyCostTitle({ cost_type: record.cost_type, cost: record.cost, key_site: record.site });
+      var costTitle = record.cost_type === "money" ? moneyCostTitle({ cost_type: record.cost_type, cost: record.cost, key_site: record.site }) : "";
       return '<article class="dashboard-recent-item"><div><div class="dashboard-recent-name" title="' + esc(record.workflow_name) + '">' + esc(record.workflow_name) + '</div><span class="dashboard-recent-meta">' + esc(formatTimestamp(record.created_at)) + " · " + esc(availability) + '</span></div><span class="dashboard-status ' + esc(record.status) + '">' + esc(statusLabel(record.status)) + '</span><span class="dashboard-recent-stat" title="' + esc(costTitle) + '">' + esc(recentCost(record)) + '</span><span class="dashboard-recent-stat">' + esc(formatDuration(record.duration_seconds)) + (outputs ? " · " + outputs + " 个产物" : "") + '</span></article>';
     }).join("");
   }

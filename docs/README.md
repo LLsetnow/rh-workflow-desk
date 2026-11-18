@@ -11,6 +11,7 @@
 - [MiniMax H3 提示词 Agent 指南](./h3-prompt-agent-guide.md)：优先复用 `ref` JSON 媒体卡片和文本积木，按 H3 规则生成提示词。
 - [图生视频首帧保真度测量](./first-frame-fidelity.md)：比较参考图与视频首个解码画面的结构、像素和色彩差异。
 - [Telegram 成片推送](./telegram.md)：任务完成后的 Bot 推送、配置和重试规则。
+- [RunningHub 积分兼容](./runninghub-points.md)：积分版账户字段、旧 API 字段兼容与费用展示边界。
 
 ## 维护规则
 

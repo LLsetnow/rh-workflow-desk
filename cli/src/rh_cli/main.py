@@ -85,10 +85,12 @@ def check(ctx: typer.Context) -> None:
         sites = result.get("sites", [])
         parts = [f"\nRunningHub 已就绪，Key 来源：{result.get('key_source')}"]
         for s in sites:
-            coin = s.get("remainCoins", "0")
+            points = s.get("remainPoint")
+            if points is None:
+                points = s.get("remainCoins", "0")
             money = s.get("remainMoney", "0")
             cur = s.get("currency", "")
-            parts.append(f"  {s['site']}.runninghub: {coin} RH币" + (f" + ${money} {cur}" if money != "0" else ""))
+            parts.append(f"  {s['site']}.runninghub: {points} 积分" + (f" + ${money} {cur}" if money != "0" else ""))
         state.out.print("[green]" + "\n".join(parts) + "[/green]")
     elif status == "no_balance":
         state.out.print(f"[yellow]API Key 可用，但余额为 0。[/yellow]请充值后再运行生成任务。")
@@ -105,7 +107,7 @@ def pricing(
         None, "--seconds", "-s", help="按任务耗时（秒）预估各机型花费，例：-s 120。"
     ),
 ) -> None:
-    """查看 RunningHub 计费费率（RH币/秒），并可按耗时预估任务花费。"""
+    """查看本地参考费率（积分/秒），并可按耗时估算任务消耗。"""
     from rh_cli.pricing import pricing_dict, render_pricing
 
     state = ctx.obj if isinstance(ctx.obj, CliState) else CliState(console=console)

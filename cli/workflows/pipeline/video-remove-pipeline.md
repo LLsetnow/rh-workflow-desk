@@ -104,7 +104,7 @@ rh workflow run "workflows/ai/SCAIL2+Animation+&+Replacement+动作迁移&角色
     -o "output/temp/<视频名>_result.png"
 ```
 
-> `--instance-type plus` 指定 48GB GPU 实例。钱包余额 Key 可用，RH 币 Key 不支持。24GB 默认实例此工作流会 OOM。
+> `--instance-type plus` 指定 48GB GPU 实例。钱包余额 Key 可用，积分余额 Key 不支持。24GB 默认实例此工作流会 OOM。
 
 > `-i` 自动上传视频替换节点 33（VHS_LoadVideo），`--set 30:image=...` 替换参考图 LoadImage 节点。
 

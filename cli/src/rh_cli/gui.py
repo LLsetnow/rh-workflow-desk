@@ -75,10 +75,12 @@ def _format_balance(result: dict) -> str:
         return "API Key 可用，但余额为 0。"
     lines = []
     for s in result.get("sites", []):
-        coin = s.get("remainCoins", "0")
+        points = s.get("remainPoint")
+        if points is None:
+            points = s.get("remainCoins", "0")
         money = s.get("remainMoney", "0")
         cur = s.get("currency", "")
-        line = f"{s['site']} 站：{coin} RH币"
+        line = f"{s['site']} 站：{points} 积分"
         if money not in ("", "0", "0.0", 0):
             line += f" + {money} {cur}"
         lines.append(line)

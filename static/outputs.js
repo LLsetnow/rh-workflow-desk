@@ -485,10 +485,10 @@
   function costLabel(item) {
     if (!item.cost) return "";
     if (item.cost_type === "money") return (window.RHCost ? window.RHCost.moneySymbol(item) : "$") + item.cost;
-    return "消耗 " + item.cost + " RH 币";
+    return "消耗 " + item.cost + " 积分";
   }
   function costTitle(item) {
-    return window.RHCost ? window.RHCost.tooltip(item) : "";
+    return item && item.cost_type === "money" && window.RHCost ? window.RHCost.tooltip(item) : "";
   }
   function updateFilterSlider() {
     var container = $("outputFilters");

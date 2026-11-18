@@ -620,8 +620,8 @@
     }
     var symbol = key.symbol || (key.site === "cn" ? "¥" : "$");
     var balance = key.balance == null || key.balance === "" ? "—" : key.balance;
-    var coins = key.coins == null || key.coins === "" ? "—" : key.coins;
-    return '<div class="credential-balance"><span><span class="credential-balance-label">余额</span> <strong>' + esc(symbol) + esc(balance) + '</strong><span class="credential-coins"> · ' + esc(coins) + ' RH 币</span></span>' +
+    var points = key.points == null || key.points === "" ? (key.coins == null || key.coins === "" ? "—" : key.coins) : key.points;
+    return '<div class="credential-balance"><span><span class="credential-balance-label">余额</span> <strong>' + esc(symbol) + esc(balance) + '</strong><span class="credential-coins"> · ' + esc(points) + ' 积分</span></span>' +
       '<span class="credential-balance-time">更新于 ' + esc(relativeTime(key.balance_checked_at)) + '</span></div>';
   }
 
@@ -672,11 +672,12 @@
   }
 
   function accountRewardMarkup(account) {
-    var reward = account.daily_coin == null ? "" : String(account.daily_coin).trim();
+    var rewardValue = account.daily_points == null || account.daily_points === "" ? account.daily_coin : account.daily_points;
+    var reward = rewardValue == null ? "" : String(rewardValue).trim();
     var balance = account.balance == null ? "" : String(account.balance).trim();
     var details = [];
-    if (reward) details.push('<strong>+' + esc(reward) + ' RH 币</strong> 今日登录奖励');
-    if (balance) details.push('余额 ' + esc(balance));
+    if (reward) details.push('<strong>+' + esc(reward) + ' 积分</strong> 今日登录奖励');
+    if (balance) details.push('积分余额 ' + esc(balance));
     if (!details.length) details.push('尚未读取今日登录奖励或余额');
     var checked = Number(account.last_checkin_at) ? ' · 上次签到 ' + esc(relativeTime(account.last_checkin_at)) : '';
     return '<div class="account-reward"><span>' + details.join('<span class="account-reward-separator"> · </span>') + '</span><span class="credential-balance-time">' + esc(account.status_message || "") + esc(checked) + '</span></div>';
@@ -718,7 +719,7 @@
     if (!task || task.cost == null || String(task.cost).trim() === "" || !task.cost_type) {
       return task && task.status === "completed" ? "费用未返回" : "";
     }
-    if (task.cost_type === "coins") return "消耗 " + String(task.cost) + " RH 币";
+    if (task.cost_type === "coins" || task.cost_type === "points") return "消耗 " + String(task.cost) + " 积分";
     if (task.cost_type === "money") {
       var symbol = task.key_site === "ai" ? "$" : (task.key_site === "cn" ? "¥" : "");
       return "消耗 " + (symbol || "金额 ") + String(task.cost);
@@ -727,7 +728,7 @@
   }
 
   function taskCostTitle(task) {
-    return window.RHCost ? window.RHCost.tooltip(task) : "";
+    return task && task.cost_type === "money" && window.RHCost ? window.RHCost.tooltip(task) : "";
   }
 
   function formatTaskDuration(task) {

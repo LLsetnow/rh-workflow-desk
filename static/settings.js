@@ -273,8 +273,8 @@
     if (!Number(key.balance_checked_at)) return '<div class="credential-balance credential-balance-empty"><span>余额</span><span>未查询</span></div>';
     var symbol = key.symbol || (key.site === "cn" ? "¥" : "$");
     var balance = key.balance == null || key.balance === "" ? "—" : key.balance;
-    var coins = key.coins == null || key.coins === "" ? "—" : key.coins;
-    return '<div class="credential-balance"><span><span class="credential-balance-label">余额</span> <strong>' + esc(symbol) + esc(balance) + '</strong><span class="credential-coins"> · ' + esc(coins) + ' RH 币</span></span><span class="credential-balance-time">更新于 ' + esc(relativeTime(key.balance_checked_at)) + '</span></div>';
+    var points = key.points == null || key.points === "" ? (key.coins == null || key.coins === "" ? "—" : key.coins) : key.points;
+    return '<div class="credential-balance"><span><span class="credential-balance-label">余额</span> <strong>' + esc(symbol) + esc(balance) + '</strong><span class="credential-coins"> · ' + esc(points) + ' 积分</span></span><span class="credential-balance-time">更新于 ' + esc(relativeTime(key.balance_checked_at)) + '</span></div>';
   }
   function credentialActionButton(key, action, label, className) {
     var busy = credentialBusy[key.id] === action;
@@ -308,7 +308,8 @@
       var current = account.id === currentId;
       var siteLabel = account.general ? "全部已绑定 API Key" : account.site === "cn" ? "runninghub.cn" : "runninghub.ai";
       var actions = account.general ? "" : managedAccountActionButton(account, "account-login", "打开登录窗口", "credential-action-check") + managedAccountActionButton(account, "account-checkin", "签到", "credential-action-refresh") + managedAccountActionButton(account, "delete-account", "删除", "credential-action-delete");
-      var reward = account.general ? account.status_message : (account.daily_coin == null ? "尚未读取今日登录奖励或余额" : "+" + account.daily_coin + " RH 币 · 今日登录奖励");
+      var points = account.daily_points == null || account.daily_points === "" ? account.daily_coin : account.daily_points;
+      var reward = account.general ? account.status_message : (points == null || points === "" ? "尚未读取今日登录奖励或余额" : "+" + points + " 积分 · 今日登录奖励");
       return '<div class="credential-card account-card' + (current ? ' is-current' : '') + (account.general ? ' general-account-card' : '') + '" data-action="select-account" data-account-id="' + esc(account.id) + '" role="button" tabindex="0" aria-pressed="' + (current ? 'true' : 'false') + '"><div class="credential-top"><div class="credential-name">' + esc(account.name) + '</div><div class="credential-tags"><span class="status-chip account-status-' + esc(status) + '">' + esc(account.general ? "可用" : accountStatusLabel(status)) + '</span>' + (current ? '<span class="capacity-chip account-current-tag">当前使用</span>' : '') + '<span class="capacity-chip">' + esc(siteLabel) + '</span></div></div><div class="credential-key">' + esc(account.general ? "不绑定账号，可调度所有已绑定的 API Key" : "登录凭证保存在 Electron 本地会话") + '</div><div class="account-reward"><span>' + esc(reward) + '</span><span class="credential-balance-time">' + esc(account.status_message || "") + '</span></div><div class="credential-bottom"><span>' + (account.general ? "当前模式不绑定账号" : "上次登录 " + (account.last_login_at ? relativeTime(account.last_login_at) : "未记录")) + '</span><span class="credential-actions">' + actions + '</span></div></div>';
     }).join("") + (!state.accounts.length ? '<div class="credential-empty">还没有账号。添加后会在 Electron 窗口中完成一次登录。</div>' : "");
   }
