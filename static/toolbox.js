@@ -750,8 +750,14 @@
     $("referenceGrid").addEventListener("click", function (event) { var button = event.target.closest("[data-remove-reference]"); if (!button) return; state.references.splice(Number(button.dataset.removeReference), 1); renderReferences(); scheduleToolboxDraftSave(); });
     $("submitCodexImage").addEventListener("click", submitCodex);
     $("submitMediaProcess").addEventListener("click", submitMedia);
-    $("submitTts").addEventListener("click", submitTts);
-    $("ttsVoice").addEventListener("change", function () { state.pendingTtsVoiceId = String($("ttsVoice").value || ""); renderTtsVoiceMeta(); scheduleToolboxDraftSave(); });
+    var ttsButton = $("submitTts");
+    var ttsVoice = $("ttsVoice");
+    if (ttsButton) ttsButton.addEventListener("click", submitTts);
+    if (ttsVoice) ttsVoice.addEventListener("change", function () {
+      state.pendingTtsVoiceId = String(ttsVoice.value || "");
+      renderTtsVoiceMeta();
+      scheduleToolboxDraftSave();
+    });
     $("mediaChooseButton").addEventListener("click", chooseMediaFile);
     $("mediaOpenFolderButton").addEventListener("click", openMediaFolder);
     bindToolboxDraftInputs();
@@ -771,7 +777,7 @@
     if (!pendingToolboxReplay) {
       restoreToolboxDraft().catch(function () { state.restoringDraft = false; });
     }
-    state.ttsVoicesPromise = loadTtsVoices();
+    if (ttsVoice) state.ttsVoicesPromise = loadTtsVoices();
     window.RHToolbox = { replayTask: replayTask };
     window.addEventListener("rh:toolbox-replay", function (event) {
       replayTask(event && event.detail || {}).catch(function (error) { toast("恢复工具箱任务失败：" + error.message, true); });
