@@ -280,7 +280,7 @@ def test_ui_removes_horizontal_section_dividers():
 def test_settings_switches_share_one_capsule_control():
     markup = (STATIC_ROOT / "settings.html").read_text(encoding="utf-8")
     styles = (STATIC_ROOT / "settings.css").read_text(encoding="utf-8")
-    assert len(re.findall(r'class="settings-switch(?:\s|\")', markup)) == 4
+    assert len(re.findall(r'class="settings-switch(?:\s|\")', markup)) == 5
     assert 'class="settings-switch-track"' in markup
     assert ".settings-switch input:checked + .settings-switch-track" in styles
     assert ".settings-switch input:focus-visible + .settings-switch-track" in styles

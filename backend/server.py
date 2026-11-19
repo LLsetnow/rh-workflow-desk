@@ -1791,6 +1791,10 @@ class LocalHandler(BaseHTTPRequestHandler):
                 )
                 self._json(201, {"reference": next(item for item in reference_store.public_references() if item["id"] == reference["id"])})
                 return
+            if path == "/api/comfyui/test":
+                _, manager = self.state
+                self._json(200, manager.test_comfyui_connection())
+                return
             if path == "/api/telegram/test":
                 _, manager = self.state
                 self._json(200, manager.test_telegram_connection())
@@ -2008,6 +2012,9 @@ class LocalHandler(BaseHTTPRequestHandler):
                         "project_name": body.get("project_name"),
                         "project_path": body.get("project_path"),
                     }
+                execution_target = str(body.get("execution_target") or "runninghub")
+                if execution_target == "comfyui" and self.headers.get_content_type() != "application/json":
+                    raise RhCliError("INVALID_CONTENT_TYPE", "ComfyUI 任务提交必须使用 application/json。")
                 task = manager.submit_task(
                     str(body.get("workflow_id") or ""),
                     body.get("files") if isinstance(body.get("files"), dict) else {},
@@ -2027,6 +2034,7 @@ class LocalHandler(BaseHTTPRequestHandler):
                     custom_inputs=body.get("custom_inputs") if isinstance(body.get("custom_inputs"), dict) else {},
                     prompt_group=prompt_group,
                     project=project,
+                    execution_target=execution_target,
                 )
                 self._json(202, {"task": task})
                 return
@@ -2118,7 +2126,14 @@ class LocalHandler(BaseHTTPRequestHandler):
                     "aliyun_translation": store.aliyun_translation_settings(),
                     "aliyun_vision": store.aliyun_vision_settings(),
                     "telegram": store.telegram_settings(),
+                    "comfyui": store.comfyui_settings(),
                 }
+                if "comfyui_url" in body:
+                    result["comfyui"] = store.set_comfyui_settings(
+                        str(body.get("comfyui_url") or ""),
+                        str(body.get("comfyui_token") or ""),
+                        body.get("comfyui_clear_token") is True,
+                    )
                 if "current_account_id" in body:
                     result["current_account_id"] = store.set_current_account(str(body.get("current_account_id") or ""))["id"]
                     manager._wake.set()

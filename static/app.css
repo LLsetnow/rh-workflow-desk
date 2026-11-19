@@ -232,6 +232,9 @@ h2 { margin-top: 6px; font-size: 20px; letter-spacing: -.025em; }
 .inline-status { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--accent-ghost); color: var(--accent); font-size: 12px; }
 .inline-status.error { color: var(--danger); background: var(--danger-ghost); }
 .workflow-remote-config { margin-top: 16px; padding: 14px; border: 1px solid var(--accent-fill); border-radius: 12px; background: var(--accent-ghost); }
+.workflow-remote-config:not([hidden]) { display: grid; gap: 12px; }
+.workflow-remote-config select { margin-top: 8px; }
+#comfyuiServerLink { display: block; margin-top: 8px; color: var(--accent); overflow-wrap: anywhere; }
 .workflow-remote-config input { margin-top: 8px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; }
 .required-mark { margin-left: 5px; color: var(--warm); font-size: 9px; font-weight: 600; }
 .workflow-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
@@ -382,6 +385,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent-opaque); 
 .prompt-tools .file-meta { min-width: 180px; flex: 1 1 220px; margin: 0; }
 .submit-strip { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(112px, .62fr) max-content; align-items: start; gap: 14px; margin-top: 22px; padding-top: 20px; }
 .submit-config { display: contents; }
+.submit-instance-field[hidden] { display: none; }
 .submit-field { min-width: 0; }
 .field-label { display: block; color: var(--muted); font-size: 11px; font-weight: 650; }
 .field-hint, .settings-note { display: block; color: var(--subtle); font-size: 10px; line-height: 1.5; }

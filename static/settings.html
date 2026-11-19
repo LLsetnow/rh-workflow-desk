@@ -117,8 +117,17 @@
                   <label class="field-group"><span class="field-label">个人 API Key 并发数</span><input id="personalCapacity" type="number" min="1" max="3" step="1" inputmode="numeric" value="3" /><span class="field-hint">范围 1—3；企业级、共享或 Wallet API Key 不受此限制。</span></label>
                 </div>
                 <div class="settings-form-grid">
-                  <label class="field-group"><span class="field-label">API Key 调度策略</span><select id="apiKeyStrategy"><option value="personal_then_shared">优先个人，满载时使用共享/企业</option><option value="personal_only">仅使用个人 API Key</option><option value="shared_only">仅使用共享/企业 API Key</option></select><span class="field-hint">任务提交页不再选择 API Key，所有提交都会按此策略自动调度。</span></label>
+                  <label class="field-group"><span class="field-label">API Key 调度策略</span><select id="apiKeyStrategy"><option value="personal_then_shared">优先个人，满载时使用共享/企业</option><option value="personal_only">仅使用个人 API Key</option><option value="shared_only">仅使用共享/企业 API Key</option></select><span class="field-hint">任务提交页不再选择 API Key，RunningHub 任务会按此策略自动调度。</span></label>
                 </div>
+              </article>
+              <article class="settings-card">
+                <div class="settings-card-heading"><h3>ComfyUI 服务器</h3></div>
+                <div class="settings-form-grid two-columns">
+                  <label class="field-group"><span class="field-label">服务器地址</span><input id="comfyuiUrl" type="text" autocomplete="off" spellcheck="false" placeholder="127.0.0.1:8188 或 https://comfy.example.com" /></label>
+                  <label class="field-group"><span class="field-label">Bearer Token（可选）</span><input id="comfyuiToken" type="password" autocomplete="new-password" /></label>
+                </div>
+                <div id="comfyuiClearTokenRow" class="settings-toggle-row" hidden><label class="settings-switch"><input id="comfyuiClearToken" type="checkbox" /><span class="settings-switch-track" aria-hidden="true"></span><span class="settings-switch-label">清除已保存的 Token</span></label></div>
+                <div class="settings-card-footer settings-button-row"><button id="testComfyui" class="secondary-button" type="button" disabled>测试已保存的连接</button></div>
               </article>
               <article class="settings-card">
                 <div class="settings-card-heading"><div><h3>当前使用账号</h3><p>点击账号卡片选择默认站点；选择会在统一保存时生效。</p></div></div>

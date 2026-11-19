@@ -423,6 +423,13 @@
     setValue("douyinCookiePath", state.settings.douyin_cookie_path || "");
     setValue("personalCapacity", state.settings.personal_capacity || 3);
     setValue("apiKeyStrategy", state.settings.api_key_strategy || "personal_then_shared");
+    var comfyui = state.settings.comfyui || {};
+    setValue("comfyuiUrl", comfyui.url || "");
+    setValue("comfyuiToken", "");
+    $("comfyuiToken").placeholder = comfyui.has_token ? "已保存" : "";
+    setChecked("comfyuiClearToken", false);
+    $("comfyuiClearTokenRow").hidden = !comfyui.has_token;
+    $("testComfyui").disabled = !comfyui.url;
     setValue("poseMediaImportType", state.settings.pose_media_import_type || "depth");
     setValue("mediaLibraryRoot", state.settings.media_library_root || "");
     var translation = state.settings.aliyun_translation || {};
@@ -485,6 +492,9 @@
     var body = {
       output_dir: value("outputDir"), douyin_cookie_path: value("douyinCookiePath"), personal_capacity: value("personalCapacity"),
       api_key_strategy: value("apiKeyStrategy"),
+      comfyui_url: value("comfyuiUrl"),
+      comfyui_token: value("comfyuiToken"),
+      comfyui_clear_token: $("comfyuiClearToken").checked,
       pose_media_import_type: value("poseMediaImportType") || "depth",
       current_account_id: state.pendingAccountId || (state.settings && state.settings.current_account_id) || "__general__",
       media_library_root: value("mediaLibraryRoot")
@@ -668,6 +678,20 @@
         showToast("资源库已创建并设为当前媒体库");
         return refresh(true);
       }).catch(function (error) { showToast(error.message, true); }).finally(function () { button.disabled = false; button.textContent = original; });
+    });
+    $("testComfyui").addEventListener("click", function () {
+      if (state.dirty) return showToast("请先保存配置，再测试 ComfyUI", true);
+      var button = this;
+      button.disabled = true;
+      button.textContent = "正在连接…";
+      jsonRequest("/api/comfyui/test", "POST", {}).then(function (data) {
+        showToast(data.message);
+      }).catch(function (error) {
+        showToast(error.message, true);
+      }).finally(function () {
+        button.disabled = !(state.settings && state.settings.comfyui && state.settings.comfyui.url);
+        button.textContent = "测试已保存的连接";
+      });
     });
     $("testTelegram").addEventListener("click", function () { if (state.dirty) return showToast("请先保存配置，再测试 Telegram", true); var button = this; button.disabled = true; jsonRequest("/api/telegram/test", "POST", {}).then(function (data) { showToast(data.message || "Telegram 测试消息已发送"); }).catch(function (error) { showToast(error.message, true); }).finally(function () { button.disabled = false; }); });
     $("clearTelegram").addEventListener("click", function () { if (!window.confirm("清除本机保存的 Telegram Bot 配置吗？点击右下角保存后生效。")) return; state.clearingTelegram = true; setValue("telegramBotToken", ""); setValue("telegramPushChatId", ""); setValue("telegramInboundChatId", ""); setChecked("telegramEnabled", false); setChecked("telegramInboundEnabled", false); setChecked("telegramVideoInboundEnabled", false); setValue("telegramInboundMode", "fixed"); setValue("telegramInboundWorkflow", ""); setValue("telegramInboundFolder", ""); setValue("telegramVideoInboundWorkflow", ""); updateTelegramInboundControls(); updateTelegramVideoInboundControls(); markDirty(); showToast("已准备清除 Telegram 配置，请保存"); });

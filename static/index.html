@@ -84,7 +84,7 @@
       <section class="intro-block">
         <div class="eyebrow">TASK SUBMIT / WORKSPACE</div>
         <h1>把所有任务，<br /><em>收进一个提交台。</em></h1>
-        <p>在三个功能区之间切换：提交 RunningHub 工作流、直接生成 Codex 图像，或把图片 / 视频处理成深度与骨骼素材。所有结果统一进入任务队列和成片库。</p>
+        <p>在三个功能区之间切换：提交 RunningHub 或 ComfyUI 工作流、直接生成 Codex 图像，或把图片 / 视频处理成深度与骨骼素材。所有结果统一进入任务队列和成片库。</p>
       </section>
 
       <div class="workspace">
@@ -92,7 +92,7 @@
           <div class="submit-workspace-tabs-sticky">
             <div class="submit-workspace-tabs-heading"><div class="section-kicker">SUBMIT WORKSPACE</div><span>选择功能区</span></div>
             <div id="submitWorkspaceTabs" class="submit-workspace-tabs" role="tablist" aria-label="任务提交功能区">
-              <button id="submitWorkspaceTabSubmit" class="submit-workspace-tab active" data-submit-section="submit" type="button" role="tab" aria-selected="true" aria-controls="submitWorkspacePanelSubmit"><span class="submit-workspace-tab-index">01</span><span><strong>任务提交</strong><small>RunningHub 工作流</small></span></button>
+              <button id="submitWorkspaceTabSubmit" class="submit-workspace-tab active" data-submit-section="submit" type="button" role="tab" aria-selected="true" aria-controls="submitWorkspacePanelSubmit"><span class="submit-workspace-tab-index">01</span><span><strong>任务提交</strong><small>RunningHub / ComfyUI</small></span></button>
               <button id="submitWorkspaceTabCodex" class="submit-workspace-tab" data-submit-section="codex" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelCodex"><span class="submit-workspace-tab-index">02</span><span><strong>Codex 图像生成</strong><small>文本 + 参考图</small></span></button>
               <button id="submitWorkspaceTabMedia" class="submit-workspace-tab" data-submit-section="media" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelMedia"><span class="submit-workspace-tab-index">03</span><span><strong>深度与骨骼</strong><small>图片 + 视频</small></span></button>
               <button id="submitWorkspaceTabTts" class="submit-workspace-tab" data-submit-section="tts" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelTts"><span class="submit-workspace-tab-index">04</span><span><strong>角色语音</strong><small>人物 + 文本</small></span></button>
@@ -122,18 +122,29 @@
             </label>
             <div id="analysisStatus" class="inline-status" hidden></div>
             <div id="workflowRemoteConfig" class="workflow-remote-config" hidden>
-              <label class="field-group" for="remoteWorkflowId">
+              <label class="field-group" for="executionTarget">
+                <span class="field-label">执行平台</span>
+                <select id="executionTarget">
+                  <option value="runninghub">RunningHub</option>
+                  <option value="comfyui">ComfyUI</option>
+                </select>
+              </label>
+              <label id="runningHubWorkflowFields" class="field-group" for="remoteWorkflowId">
                 <span class="field-label">RunningHub workflowId <span class="required-mark">必填</span></span>
                 <input id="remoteWorkflowId" type="text" inputmode="numeric" autocomplete="off" placeholder="输入 RunningHub 工作流 ID" />
                 <span class="field-hint">这是远程工作流 ID，不是本地 wf_... ID；可从 RunningHub 工作流页面 URL 获取。</span>
               </label>
+              <div id="comfyuiServerField" class="field-group" hidden>
+                <span class="field-label">ComfyUI 服务器</span>
+                <a id="comfyuiServerLink" href="/settings#platform">配置服务器</a>
+              </div>
             </div>
             <div id="workflowSummary" class="workflow-summary" hidden></div>
             <div id="workflowInputs" class="workflow-inputs" hidden></div>
 
             <div class="submit-strip" id="submitStrip" hidden>
               <div class="submit-config">
-                <div class="submit-field submit-instance-field">
+                <div id="runningHubInstanceField" class="submit-field submit-instance-field">
                   <label class="field-label" for="instanceType">提交机型</label>
                   <select id="instanceType">
                     <option value="default">Standard · 24GB</option>

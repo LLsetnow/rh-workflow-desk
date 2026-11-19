@@ -39,6 +39,7 @@ from rh_cli.workflow.client import (
     _upload_file,
     _validate_api_workflow,
 )
+from .comfyui import ComfyUIClient, normalize_comfyui_url
 from .telegram import TelegramDeliveryError, TelegramNotifier
 from .input_paths import input_source_path
 from .model_catalog import model_input_type
@@ -1026,16 +1027,18 @@ def apply_default_file_inputs(
     files: dict[str, str] | None,
     bypassed_nodes: set[str],
     workflow_path: Path,
+    *,
+    include_required: bool = False,
 ) -> dict[str, str]:
-    """Keep optional file inputs on their workflow defaults when not overridden.
+    """Resolve local workflow file defaults when an input is not overridden.
 
     A configured optional input means "do not require a replacement from the
     current task", not "remove the input from the API workflow". Local default
-    paths still need to be uploaded before submission to RunningHub.
+    paths still need to be uploaded before remote execution.
     """
     resolved = dict(files or {})
     for item in analysis.get("file_inputs") or []:
-        if not isinstance(item, dict) or bool(item.get("required", True)):
+        if not isinstance(item, dict) or (not include_required and bool(item.get("required", True))):
             continue
         input_id = str(item.get("id") or "").strip()
         node_id = str(item.get("node_id") or "").strip()
@@ -1380,6 +1383,7 @@ class LocalStore:
               submission_source TEXT NOT NULL DEFAULT 'local',
               task_type TEXT NOT NULL DEFAULT 'workflow',
               remote_task_id TEXT,
+              comfyui_url TEXT NOT NULL DEFAULT '',
               remote_workflow_id TEXT NOT NULL DEFAULT '',
               registered_workflow_id TEXT NOT NULL DEFAULT '',
               local_workflow_id TEXT NOT NULL DEFAULT '',
@@ -1491,6 +1495,8 @@ class LocalStore:
     def _migrate_schema(self) -> None:
         """Add fields introduced by newer web builds to an existing local database."""
         columns = {str(row[1]) for row in self._db.execute("PRAGMA table_info(tasks)").fetchall()}
+        if "comfyui_url" not in columns:
+            self._db.execute("ALTER TABLE tasks ADD COLUMN comfyui_url TEXT NOT NULL DEFAULT ''")
         if "remote_workflow_id" not in columns:
             self._db.execute("ALTER TABLE tasks ADD COLUMN remote_workflow_id TEXT NOT NULL DEFAULT ''")
         if "registered_workflow_id" not in columns:
@@ -2114,6 +2120,33 @@ class LocalStore:
         data.setdefault("output_dir", str(default_local_output_dir()))
         self._write_json_file(data)
         return capacity
+
+    def comfyui_connection(self, task_url: str = "") -> tuple[str, str]:
+        with self._lock:
+            config = self._read_json_file()
+        saved_url = str(config.get("comfyui_url") or "")
+        url = task_url or saved_url
+        token = str(config.get("comfyui_token") or "") if url == saved_url else ""
+        return url, token
+
+    def comfyui_settings(self) -> dict[str, Any]:
+        url, token = self.comfyui_connection()
+        return {"url": url, "has_token": bool(token)}
+
+    def set_comfyui_settings(self, url: str, token: str, clear_token: bool) -> dict[str, Any]:
+        url = normalize_comfyui_url(url)
+        token = token.strip()
+        if token and (not url or not re.fullmatch(r"[!-~]{1,8192}", token)):
+            raise RhCliError("INVALID_COMFYUI_TOKEN", "请填写有效的 Bearer Token 和 ComfyUI 地址。")
+        with self._lock:
+            config = self._read_json_file()
+            if clear_token or config.get("comfyui_url") != url:
+                config.pop("comfyui_token", None)
+            if token and not clear_token:
+                config["comfyui_token"] = token
+            config["comfyui_url"] = url
+            self._write_json_file(config)
+        return self.comfyui_settings()
 
     def aliyun_translation_credentials(self) -> tuple[str, str]:
         """Return local Aliyun translation credentials, falling back to env vars."""
@@ -4248,6 +4281,7 @@ class LocalStore:
                 "path": str(task.get("project_path") or "").strip(),
             },
             "execution": {
+                **({"comfyui_url": task["comfyui_url"]} if task.get("comfyui_url") else {}),
                 "instance_type": normalize_instance_type(task.get("instance_type")),
                 "output_prefix": normalize_output_prefix(task.get("output_prefix")),
                 "account_id": str(task.get("account_id") or "").strip(),
@@ -4406,6 +4440,7 @@ class LocalStore:
             "submission_source": submission_source,
             "task_type": "toolbox" if str(task.get("task_type") or "").strip().lower() == "toolbox" else "workflow",
             "remote_task_id": None,
+            "comfyui_url": str(task.get("comfyui_url") or ""),
             "remote_workflow_id": str(task.get("remote_workflow_id") or "").strip(),
             "registered_workflow_id": str(task.get("registered_workflow_id") or "").strip(),
             "local_workflow_id": str(task.get("local_workflow_id") or "").strip(),
@@ -4444,9 +4479,9 @@ class LocalStore:
         }
         with self._lock:
             self._db.execute(
-                "INSERT INTO tasks (id,created_at,updated_at,status,progress,workflow_path,workflow_name,project_id,project_name,project_path,project_inference_disabled,key_id,account_id,instance_type,output_prefix,dispatch_key_name,dispatch_key_site,dispatch_key_api_type,submission_source,task_type,remote_task_id,remote_workflow_id,registered_workflow_id,local_workflow_id,"
+                "INSERT INTO tasks (id,created_at,updated_at,status,progress,workflow_path,workflow_name,project_id,project_name,project_path,project_inference_disabled,key_id,account_id,instance_type,output_prefix,dispatch_key_name,dispatch_key_site,dispatch_key_api_type,submission_source,task_type,remote_task_id,comfyui_url,remote_workflow_id,registered_workflow_id,local_workflow_id,"
                 "input_json,prompt_json,custom_json,input_config_json,bypass_json,random_noise_json,resolution_json,workflow_snapshot_path,prompt_group_snapshot_path,manifest_path,output_dir,outputs_json,error,error_detail,stage_logs_json,cost_type,cost,duration) "
-                "VALUES (:id,:created_at,:updated_at,:status,:progress,:workflow_path,:workflow_name,:project_id,:project_name,:project_path,:project_inference_disabled,:key_id,:account_id,:instance_type,:output_prefix,:dispatch_key_name,:dispatch_key_site,:dispatch_key_api_type,:submission_source,:task_type,:remote_task_id,:remote_workflow_id,:registered_workflow_id,:local_workflow_id,"
+                "VALUES (:id,:created_at,:updated_at,:status,:progress,:workflow_path,:workflow_name,:project_id,:project_name,:project_path,:project_inference_disabled,:key_id,:account_id,:instance_type,:output_prefix,:dispatch_key_name,:dispatch_key_site,:dispatch_key_api_type,:submission_source,:task_type,:remote_task_id,:comfyui_url,:remote_workflow_id,:registered_workflow_id,:local_workflow_id,"
                 ":input_json,:prompt_json,:custom_json,:input_config_json,:bypass_json,:random_noise_json,:resolution_json,:workflow_snapshot_path,:prompt_group_snapshot_path,:manifest_path,:output_dir,:outputs_json,:error,:error_detail,:stage_logs_json,:cost_type,:cost,:duration)",
                 fields,
             )
@@ -5313,6 +5348,21 @@ class LocalStore:
             )
             self._db.commit()
 
+    def claim_comfyui_task(self, task_id: str, recovery: bool) -> bool:
+        with self._lock, self._db:
+            now = now_ms()
+            cursor = self._db.execute(
+                "UPDATE tasks SET status=?, progress=?, updated_at=?, started_at=COALESCE(started_at, ?) "
+                "WHERE id=? AND comfyui_url<>'' AND status=? AND "
+                "(SELECT COUNT(*) FROM tasks WHERE status IN ('submitting','running')) < ?",
+                (
+                    "running" if recovery else "submitting",
+                    "正在恢复 ComfyUI 轮询…" if recovery else "准备提交到 ComfyUI…",
+                    now, now, task_id, "recovering" if recovery else "queued", LOCAL_WORKER_CAPACITY,
+                ),
+            )
+            return cursor.rowcount == 1
+
     def claim_task_slot(
         self,
         task_id: str,
@@ -5457,6 +5507,14 @@ class TaskManager:
         # to finish before server_close() closes the database connection; queued
         # deliveries can be cancelled because the process is shutting down.
         self._telegram_executor.shutdown(wait=True, cancel_futures=True)
+
+    def test_comfyui_connection(self) -> dict[str, Any]:
+        url, token = self.store.comfyui_connection()
+        if not url:
+            raise RhCliError("MISSING_COMFYUI_URL", "请先在设置中保存 ComfyUI 服务器地址。")
+        with ComfyUIClient(url, token) as client:
+            client.test_connection()
+        return {"message": "ComfyUI 连接成功"}
 
     def test_telegram_connection(self) -> dict[str, Any]:
         return self._telegram_notifier.test_connection()
@@ -6408,7 +6466,17 @@ class TaskManager:
         submission_source: str = "local",
         project: dict[str, Any] | None = None,
         output_prefix: str | None = None,
+        execution_target: str = "runninghub",
     ) -> dict[str, Any]:
+        if execution_target not in {"runninghub", "comfyui"}:
+            raise RhCliError("INVALID_EXECUTION_TARGET", "请选择有效的执行平台。")
+        comfyui_url = ""
+        if execution_target == "comfyui":
+            comfyui_url, _ = self.store.comfyui_connection()
+            if not comfyui_url:
+                raise RhCliError("MISSING_COMFYUI_URL", "请先在设置中保存 ComfyUI 服务器地址。")
+            key_id = None
+            instance_type = "default"
         inline_workflow = workflow_data is not None
         if workflow_data is not None:
             if not isinstance(workflow_data, dict):
@@ -6434,7 +6502,7 @@ class TaskManager:
         if key_id and not selected_key:
             raise RhCliError("KEY_NOT_FOUND", "指定的 API Key 不存在。")
         selected_key_account_id = str(selected_key.get("account_id") or "").strip() if selected_key else ""
-        account_restricted = not force_workflow_account and current_account_id not in {"", GENERAL_ACCOUNT_ID}
+        account_restricted = not comfyui_url and not force_workflow_account and current_account_id not in {"", GENERAL_ACCOUNT_ID}
         if key_id and account_restricted and selected_key_account_id != current_account_id:
             raise RhCliError("KEY_ACCOUNT_MISMATCH", "所选 API Key 不属于当前使用账号，请切换账号或重新选择 API Key。")
         bound_workflow_account_id = str(workflow_account_id or "").strip()
@@ -6462,7 +6530,10 @@ class TaskManager:
         analysis = configured_workflow_analysis(workflow, normalized_input_config)
         normalized_custom_inputs = normalize_custom_input_values(workflow, analysis, custom_inputs)
         remote_id = str(remote_workflow_id or "").strip() or analysis.get("remote_workflow_id", "")
-        if not remote_id:
+        if comfyui_url:
+            remote_id = ""
+            _validate_api_workflow(workflow_nodes(workflow))
+        elif not remote_id:
             raise RhCliError("MISSING_WORKFLOW_ID", "请填写 RunningHub workflowId 后再提交。")
         normalized_bypassed_nodes = normalize_bypassed_nodes(workflow, bypassed_nodes)
         bypassed_set = set(normalized_bypassed_nodes)
@@ -6491,11 +6562,16 @@ class TaskManager:
             submission_source = "local"
         if submission_source == "telegram":
             project = self._telegram_project()
-        files = apply_default_file_inputs(workflow, analysis, files, bypassed_set, workflow_path)
+        files = apply_default_file_inputs(
+            workflow, analysis, files, bypassed_set, workflow_path, include_required=bool(comfyui_url)
+        )
+        if comfyui_url:
+            files = {input_id: path for input_id, path in files.items() if str(path or "").strip()}
         required = {
             item["id"]
             for item in analysis["file_inputs"]
             if item["node_id"] not in bypassed_set and item.get("required", True)
+            and not (comfyui_url and str(item.get("default") or "").strip() and item["id"] not in files)
         }
         missing = sorted(item for item in required if not str(files.get(item, "")).strip())
         if missing:
@@ -6531,6 +6607,7 @@ class TaskManager:
             "workflow_name": canonical_workflow_name(task_workflow_name or "workflow_api.json"),
             "task_type": "workflow",
             "remote_workflow_id": remote_id,
+            "comfyui_url": comfyui_url,
             "registered_workflow_id": registered_workflow_id,
             "local_workflow_id": workflow_id if inline_workflow else "",
             "submission_source": submission_source,
@@ -6542,7 +6619,9 @@ class TaskManager:
             "random_noise": normalized_random_noise,
             "resolution": normalized_resolution,
             "key_id": key_id or None,
-            "account_id": bound_workflow_account_id if force_workflow_account else current_account_id or selected_key_account_id or bound_workflow_account_id,
+            "account_id": "" if comfyui_url else (
+                bound_workflow_account_id if force_workflow_account else current_account_id or selected_key_account_id or bound_workflow_account_id
+            ),
             "instance_type": instance_type,
             "output_prefix": output_prefix,
             "project_id": normalized_project["id"],
@@ -6554,17 +6633,15 @@ class TaskManager:
         snapshot_workflow = json.loads(json.dumps(workflow, ensure_ascii=False))
         for values in (files, prompts):
             for input_id, value in values.items():
-                if str(input_id).split(":", 1)[0] in bypassed_set:
+                node_id, _, field = str(input_id).rpartition(":")
+                if not node_id or not field or node_id in bypassed_set:
                     continue
-                separator = str(input_id).find(":")
-                if separator <= 0:
-                    continue
-                node = snapshot_workflow.get(str(input_id)[:separator])
+                node = snapshot_workflow.get(node_id)
                 if not isinstance(node, dict):
                     continue
                 inputs = node.setdefault("inputs", {})
                 if isinstance(inputs, dict):
-                    inputs[str(input_id)[separator + 1 :]] = value
+                    inputs[field] = value
         apply_custom_input_values(snapshot_workflow, normalized_custom_inputs)
         apply_random_noise_inputs(snapshot_workflow, active_random_noise)
         apply_resolution_inputs(snapshot_workflow, active_resolution)
@@ -6647,6 +6724,15 @@ class TaskManager:
             if task["id"] in self._claimed:
                 continue
             recovery = task["status"] == "recovering"
+            if task.get("comfyui_url"):
+                with self._lock:
+                    if not self.store.claim_comfyui_task(task["id"], recovery):
+                        continue
+                    event = threading.Event()
+                    self._claimed.add(task["id"])
+                    self._cancel_events[task["id"]] = event
+                self._executor.submit(self._run_task, task["id"], None, event, recovery)
+                continue
             automatic_dispatch = not bool(task.get("key_id"))
             scoped_keys = self._keys_for_task(task, keys)
             record = self._select_key(task, scoped_keys, records, remote_queue_states)
@@ -6972,10 +7058,77 @@ class TaskManager:
         self._log_stage(task_id, "complete", f"重启后恢复完成，共保存 {len(saved)} 个产物")
         self._queue_telegram_delivery(task_id, saved)
 
+    def _run_comfyui_task(
+        self, task: dict[str, Any], cancel: threading.Event, recovery: bool
+    ) -> None:
+        task_id = task["id"]
+        url, token = self.store.comfyui_connection(task["comfyui_url"])
+        folder = self.store.task_output_path(task)
+        folder.mkdir(parents=True, exist_ok=True)
+        prompt_id = str(task.get("remote_task_id") or "")
+        with ComfyUIClient(url, token) as client:
+            client.check_cancel(cancel, prompt_id)
+            if not recovery:
+                workflow = workflow_nodes(json.loads(self.store.task_workflow_path(task).read_text(encoding="utf-8")))
+                bypassed = set(normalize_bypassed_nodes(workflow, task["bypassed_nodes"]))
+                removed = apply_bypassed_nodes(workflow, bypassed)
+                _validate_api_workflow(workflow)
+                if removed:
+                    self._log_stage(task_id, "prepare", f"已旁路 {len(removed)} 个节点")
+                uploads = {}
+                for input_id, value in task["files"].items():
+                    node_id, _, field = input_id.rpartition(":")
+                    if node_id in bypassed:
+                        continue
+                    if not field or node_id not in workflow or field not in workflow[node_id]["inputs"]:
+                        raise RhCliError("INVALID_FILE_ARG", f"工作流不存在文件输入 {input_id}。")
+                    path = Path(str(value)).expanduser().resolve()
+                    if not path.is_file():
+                        raise RhCliError("FILE_NOT_FOUND", f"本地输入文件不存在：{path}")
+                    uploads[(node_id, field)] = path
+                self._log_stage(task_id, "upload", f"开始上传 {len(uploads)} 个 ComfyUI 输入")
+                uploaded_paths = {}
+                for (node_id, field), path in uploads.items():
+                    if self._stop.is_set():
+                        return
+                    client.check_cancel(cancel)
+                    if path not in uploaded_paths:
+                        uploaded_paths[path] = client.upload(path, task_id)
+                    workflow[node_id]["inputs"][field] = uploaded_paths[path]
+                if self._stop.is_set():
+                    return
+                client.check_cancel(cancel)
+                self._log_stage(task_id, "submit", "正在向 ComfyUI 提交工作流")
+                prompt_id = client.submit(workflow)
+                self.store.update_task(task_id, remote_task_id=prompt_id, status="running", progress="已提交到 ComfyUI")
+                self._log_stage(task_id, "submit", f"ComfyUI 已返回 prompt_id：{prompt_id}")
+
+            def on_state(state: str) -> None:
+                labels = {
+                    "running": "ComfyUI 执行中…",
+                    "pending": "等待 ComfyUI 队列…",
+                    "reconnecting": "正在重新连接 ComfyUI…",
+                    "": "正在检查 ComfyUI 历史记录…",
+                }
+                self.store.update_task(task_id, progress=labels[state])
+                self._log_stage(task_id, "poll", labels[state])
+
+            outputs = client.wait_for_outputs(prompt_id, cancel, self._stop, on_state)
+            if outputs is None:
+                return
+            self._log_stage(task_id, "download", f"开始保存 {len(outputs)} 个 ComfyUI 产物")
+            saved = self._download_outputs(client, outputs, folder, task.get("output_prefix"))
+        self.store.update_task(
+            task_id, status="completed", progress=f"已完成 · 保存 {len(saved)} 个产物",
+            completed_at=now_ms(), outputs_json=json.dumps(saved, ensure_ascii=False),
+        )
+        self._log_stage(task_id, "complete", f"ComfyUI 任务完成，共保存 {len(saved)} 个产物")
+        self._queue_telegram_delivery(task_id, saved)
+
     def _run_task(
         self,
         task_id: str,
-        key: dict[str, Any],
+        key: dict[str, Any] | None,
         cancel_event: threading.Event,
         recovery: bool = False,
         automatic_dispatch: bool = False,
@@ -6984,6 +7137,9 @@ class TaskManager:
         try:
             task = self.store.task(task_id)
             if not task:
+                return
+            if key is None:
+                self._run_comfyui_task(task, cancel_event, recovery)
                 return
             if cancel_event.is_set():
                 raise RhCliError("TASK_CANCELLED", "任务已取消。")
@@ -7188,7 +7344,7 @@ class TaskManager:
             self._log_stage(task_id, "complete", f"任务完成，共保存 {len(saved)} 个产物")
             self._queue_telegram_delivery(task_id, saved)
         except RhCliError as exc:
-            if exc.code == "REMOTE_QUEUE_FULL":
+            if key is not None and exc.code == "REMOTE_QUEUE_FULL":
                 if cancel_event.is_set():
                     self.store.update_task(task_id, status="cancelled", progress="已取消", completed_at=now_ms())
                     self._log_stage(task_id, "cancelled", "任务在远程队列繁忙时被取消", level="warning")
@@ -7210,7 +7366,7 @@ class TaskManager:
                     self.store.update_task(task_id, status="cancelled", progress="任务已取消", completed_at=now_ms())
                 return
             runtime_key_failure = self._runtime_key_failure_code(exc)
-            if runtime_key_failure:
+            if key is not None and runtime_key_failure:
                 self._mark_runtime_key_failure(key, runtime_key_failure)
             status = "cancelled" if exc.code == "TASK_CANCELLED" else "failed"
             error_detail = {"code": exc.code, "message": exc.message}
@@ -7231,15 +7387,16 @@ class TaskManager:
             with self._lock:
                 self._claimed.discard(task_id)
                 self._cancel_events.pop(task_id, None)
-                key_id = key["id"]
-                self._active_by_key[key_id] = max(0, self._active_by_key.get(key_id, 1) - 1)
-            if not requeued:
+                if key is not None:
+                    key_id = key["id"]
+                    self._active_by_key[key_id] = max(0, self._active_by_key.get(key_id, 1) - 1)
+            if key is not None and not requeued:
                 self.store.clear_remote_queue_probe(key["id"], task_id)
             self._wake.set()
 
     @staticmethod
     def _download_outputs(
-        client: RhHttpClient,
+        client: RhHttpClient | ComfyUIClient,
         outputs: list[dict[str, Any]],
         folder: Path,
         output_prefix: str | None = None,
@@ -7321,6 +7478,8 @@ def public_state(
             "telegram": store.telegram_settings(),
         },
     }
+    if scope in {"full", "submit", "settings"}:
+        result["settings"]["comfyui"] = store.comfyui_settings()
     if scope in {"full", "submit", "workflows", "settings"}:
         result["current_account"] = public_account(current_account) if current_account else None
         result["accounts"] = [public_account(item) for item in store.accounts()]

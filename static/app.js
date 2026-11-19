@@ -419,6 +419,7 @@
       projectId: taskProjectId,
       repeatCount: submitRepeatCount,
       taskName: submitTaskName,
+      executionTarget: executionTarget(),
       workflow: previous.workflow || null
     };
     if (appState.workflow && appState.analysis && appState.workflowId) {
@@ -587,6 +588,7 @@
       if (taskNameInput) taskNameInput.value = submitTaskName;
     }
     syncSubmitRepeatControl();
+    setExecutionTarget(draft.executionTarget);
     var savedWorkflow = draft.workflow;
     if (!savedWorkflow || !savedWorkflow.data || typeof savedWorkflow.data !== "object" || !savedWorkflow.analysis || typeof savedWorkflow.analysis !== "object") return false;
     appState.workflowId = String(savedWorkflow.id || "");
@@ -744,6 +746,7 @@
   }
 
   function taskCredentialLabel(task) {
+    if (task && task.comfyui_url) return "ComfyUI";
     var name = String(task && task.key_name || "").trim() || "自动调度";
     var site = task && task.key_site === "cn" ? "runninghub.cn" : (task && task.key_site === "ai" ? "runninghub.ai" : "");
     return site ? name + " · " + site : name;
@@ -859,8 +862,9 @@
       var workflowId = taskWorkflowId(task) || "未记录";
       var taskActionLabel = toolboxTask ? "复现任务" : "加载任务";
       var taskMeta = '<span>' + esc(taskCredentialLabel(task)) + '</span><span>·</span>' +
-        (toolboxTask ? '' : '<span>机型 ' + esc(taskInstanceLabel(task)) + '</span><span>·</span>') +
-        queueLabel + '<span>workflowId ' + esc(workflowId) + '</span><span>·</span><span>' + formatTime(task.created_at) + '</span>';
+        (toolboxTask || task.comfyui_url ? '' : '<span>机型 ' + esc(taskInstanceLabel(task)) + '</span><span>·</span>') +
+        queueLabel + (task.comfyui_url ? '' : '<span>workflowId ' + esc(workflowId) + '</span><span>·</span>') +
+        '<span>' + formatTime(task.created_at) + '</span>';
       return '<article class="task-card ' + statusClass + '" data-task-id="' + esc(task.id) + '">' +
         '<div class="task-card-main" data-action="load-task" role="button" tabindex="0" aria-label="' + taskActionLabel + '：' + esc(displayName) + '" title="点击' + taskActionLabel + '">' +
         '<div class="task-top"><button class="task-name task-name-button" type="button" data-action="open-task" title="打开任务详情" aria-label="打开任务 ' + esc(displayName) + '">' + esc(displayName) + '</button>' +
@@ -1001,6 +1005,7 @@
     var completedTasks = detectCompletedTasks(tasks);
     appState.tasks = tasks;
     appState.settings = data.settings || {};
+    renderExecutionTarget();
     if (document.activeElement !== $("outputDir")) $("outputDir").value = appState.settings.output_dir || "";
     if (document.activeElement !== $("douyinCookiePath")) $("douyinCookiePath").value = appState.settings.douyin_cookie_path || "";
     if ($("mediaLibraryRoot") && document.activeElement !== $("mediaLibraryRoot")) $("mediaLibraryRoot").value = appState.settings.media_library_root || "";
@@ -1089,6 +1094,29 @@
     element.hidden = !message;
     element.className = "inline-status" + (isError ? " error" : "");
     element.textContent = message || "";
+  }
+
+  function executionTarget() {
+    var select = $("executionTarget");
+    return select && select.value === "comfyui" ? "comfyui" : "runninghub";
+  }
+
+  function setExecutionTarget(value) {
+    var select = $("executionTarget");
+    if (!select) return;
+    select.value = value === "comfyui" ? "comfyui" : "runninghub";
+    renderExecutionTarget();
+  }
+
+  function renderExecutionTarget() {
+    var link = $("comfyuiServerLink");
+    if (!link) return;
+    var useComfyui = executionTarget() === "comfyui";
+    $("runningHubWorkflowFields").hidden = useComfyui;
+    $("runningHubInstanceField").hidden = useComfyui;
+    $("comfyuiServerField").hidden = !useComfyui;
+    var connection = appState.settings && appState.settings.comfyui;
+    link.textContent = (connection && connection.url) || "配置服务器";
   }
 
   function setRemoteWorkflowId(value) {
@@ -2166,6 +2194,7 @@
         showToast("已载入工具箱任务，可再次复现：" + (savedTask.workflow_name || "本地处理"));
         return;
       }
+      setExecutionTarget(savedTask.comfyui_url ? "comfyui" : "runninghub");
       queuePromptGroupSnapshot(data.prompt_group);
       var promptGroup = promptGroupSnapshot(data.prompt_group);
       appState.workflowId = data.workflow_id || "";
@@ -3311,7 +3340,14 @@
     if (button.disabled) return;
     if (!appState.workflowId) return showToast("请先导入 API 工作流", true);
     var currentRemoteWorkflowId = $("remoteWorkflowId") ? $("remoteWorkflowId").value.trim() : "";
-    if (!currentRemoteWorkflowId) {
+    var target = executionTarget();
+    var useComfyui = target === "comfyui";
+    if (useComfyui && !(appState.settings && appState.settings.comfyui && appState.settings.comfyui.url)) {
+      showToast("请先在设置中保存 ComfyUI 服务器地址", true);
+      $("comfyuiServerLink").focus();
+      return;
+    }
+    if (!useComfyui && !currentRemoteWorkflowId) {
       showToast("请先填写 RunningHub workflowId", true);
       $("remoteWorkflowId").focus();
       return;
@@ -3319,7 +3355,8 @@
     var values = collectInputs();
     var required = (appState.analysis && appState.analysis.file_inputs) || [];
     var missing = required.some(function (item) {
-      return values.bypassedNodes.indexOf(item.node_id) === -1 && !values.files[item.id];
+      return values.bypassedNodes.indexOf(item.node_id) === -1 && !values.files[item.id] &&
+        (!useComfyui || (item.required !== false && !String(item.default || "").trim()));
     });
     if (missing) return showToast("请先为所有文件输入选择本地文件", true);
     var missingCustom = (appState.analysis && appState.analysis.custom_inputs || []).some(function (item) {
@@ -3376,7 +3413,8 @@
       workflow_name: appState.workflowName,
       workflow_account_id: appState.workflowAccountId || null,
       workflow_input_config: appState.workflowInputConfig,
-      remote_workflow_id: currentRemoteWorkflowId,
+      remote_workflow_id: useComfyui ? "" : currentRemoteWorkflowId,
+      execution_target: target,
       files: values.files,
       prompts: values.prompts,
       custom_inputs: values.customInputs,
@@ -3527,7 +3565,14 @@
     var costLabel = formatTaskCost(task);
     var toolboxTask = isToolboxTask(task);
     var detailWorkflowId = taskWorkflowId(task) || "未记录";
-    meta.innerHTML = '<span>' + statusLabel(task.status) + '</span><span>API Key：' + esc(taskCredentialLabel(task)) + '</span>' + (toolboxTask ? '' : '<span>机型：' + esc(taskInstanceLabel(task)) + '</span>') + '<span>workflowId：' + esc(detailWorkflowId) + '</span><span>taskId：' + esc(task.remote_task_id || "尚未返回") + '</span>' + (costLabel ? '<span title="' + esc(taskCostTitle(task)) + '">' + esc(costLabel) + '</span>' : '') + '<span>' + esc(formatTaskDuration(task)) + '</span><span>' + formatTime(task.created_at) + '</span>';
+    var executionMeta = task.comfyui_url
+      ? '<span>ComfyUI · ' + esc(task.comfyui_url) + '</span><span>prompt_id：' + esc(task.remote_task_id || "尚未返回") + '</span>'
+      : '<span>API Key：' + esc(taskCredentialLabel(task)) + '</span>' +
+        (toolboxTask ? '' : '<span>机型：' + esc(taskInstanceLabel(task)) + '</span>') +
+        '<span>workflowId：' + esc(detailWorkflowId) + '</span><span>taskId：' + esc(task.remote_task_id || "尚未返回") + '</span>';
+    meta.innerHTML = '<span>' + statusLabel(task.status) + '</span>' + executionMeta +
+      (costLabel ? '<span title="' + esc(taskCostTitle(task)) + '">' + esc(costLabel) + '</span>' : '') +
+      '<span>' + esc(formatTaskDuration(task)) + '</span><span>' + formatTime(task.created_at) + '</span>';
     renderDiagnostics(task);
     if (renderOutputs) renderTaskOutputs(task);
   }
@@ -3783,6 +3828,10 @@
       updateThemeToggle();
     });
     $("workflowFile").addEventListener("change", function () { analyzeFile(this.files[0]); });
+    if ($("executionTarget")) $("executionTarget").addEventListener("change", function () {
+      renderExecutionTarget();
+      scheduleDraftSave();
+    });
     $("remoteWorkflowId").addEventListener("input", function () {
       appState.remoteWorkflowId = this.value.trim();
       scheduleDraftSave();

@@ -50,6 +50,9 @@ def test_public_state_supports_page_scopes_without_changing_full_snapshot():
         def telegram_settings(self):
             return {}
 
+        def comfyui_settings(self):
+            return {"url": "", "has_token": False}
+
         def accounts(self):
             return []
 
@@ -4494,3 +4497,118 @@ def test_run_task_removes_bypassed_nodes_from_submitted_workflow(tmp_path, monke
     finally:
         manager.close()
         store._db.close()
+
+
+def test_comfyui_submission_recovers_on_original_server(tmp_path, monkeypatch):
+    import time
+
+    import httpx
+
+    _configure_web_paths(tmp_path, monkeypatch)
+    prompt_id = "comfy-prompt"
+    ready = threading.Event()
+    accepted = threading.Event()
+    requests = []
+    graphs = []
+    source = tmp_path / "参考.png"
+    source.write_bytes(b"mock image data")
+    graph = {
+        "sub:1": {"class_type": "LoadImage", "inputs": {"image": "server-default.png"}},
+        "2": {"class_type": "LoadImage", "inputs": {"image": "shared.png"}},
+        "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "default"}},
+        "4": {"class_type": "SaveImage", "inputs": {"images": ["sub:1", 0]}},
+        "5": {"class_type": "LoadImage", "inputs": {"image": "unused.png"}},
+        "__rh_meta__": {"workflowId": "runninghub-only"},
+    }
+
+    def mock_comfyui(request):
+        route = request.url.path.removeprefix("/comfy")
+        requests.append((request.url.host, route, "authorization" in request.headers))
+        if route == "/system_stats":
+            return httpx.Response(200, json={"system": {}, "devices": []})
+        if route == "/upload/image":
+            assert b"mock image data" in request.read()
+            return httpx.Response(200, json={"name": "unique.png", "subfolder": "from-desk"})
+        if route == "/prompt":
+            graphs.append(json.loads(request.content)["prompt"])
+            return httpx.Response(200, json={"prompt_id": prompt_id})
+        if route == f"/history/{prompt_id}":
+            accepted.set()
+            if ready.is_set():
+                return httpx.Response(200, json={prompt_id: {
+                    "status": {"status_str": "success", "completed": True},
+                    "outputs": {
+                        "4": {"images": [{"filename": "generated.png", "type": "output", "subfolder": "clips"}]},
+                        "7": {"text": ["描述文本"]},
+                    },
+                }})
+            return httpx.Response(200, json={})
+        if route == "/queue":
+            return httpx.Response(200, json={"queue_running": [], "queue_pending": [[1, prompt_id]]})
+        if route == "/view":
+            assert dict(request.url.params) == {"filename": "generated.png", "type": "output", "subfolder": "clips"}
+            return httpx.Response(200, content=b"generated image")
+        raise AssertionError(f"Unexpected route {route}")
+
+    class TestClient(web_app.ComfyUIClient):
+        def __init__(self, url, token):
+            transport = httpx.MockTransport(mock_comfyui)
+            httpx.Client.__init__(self, base_url=url + "/", transport=transport,
+                                  headers={"Authorization": f"Bearer {token}"} if token else {})
+
+    monkeypatch.setattr(web_app, "ComfyUIClient", TestClient)
+    store = web_app.LocalStore()
+    store.save_keys([])
+    manager = web_app.TaskManager(store)
+    try:
+        settings = store.set_comfyui_settings("http://first.example:8188/comfy/", "fixture-value", False)
+        assert settings == {"url": "http://first.example:8188/comfy", "has_token": True}
+        assert manager.test_comfyui_connection()["message"] == "ComfyUI 连接成功"
+        task = manager.submit_task(
+            "", {"sub:1:image": str(source), "2:image": "", "5:image": "/missing/bypassed.png"},
+            {"3:text": "updated"}, None, str(tmp_path / "outputs"),
+            execution_target="comfyui", workflow_data=graph, bypassed_nodes=["5"], output_prefix="comfy",
+        )
+        assert accepted.wait(5)
+        assert store.task(task["id"])["remote_task_id"] == prompt_id
+        assert store.task(task["id"])["key_id"] is None
+        assert graphs == [{
+            "sub:1": {"class_type": "LoadImage", "inputs": {"image": "from-desk/unique.png"}},
+            "2": graph["2"],
+            "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "updated"}},
+            "4": graph["4"],
+        }]
+        assert store.set_comfyui_settings("https://second.example", "", False)["has_token"] is False
+    finally:
+        manager.close()
+        manager._executor.shutdown(wait=True)
+        store.close()
+
+    ready.set()
+    store = web_app.LocalStore()
+    manager = web_app.TaskManager(store)
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            done = store.task(task["id"])
+            if done["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.02)
+        assert done["status"] == "completed", done["error_detail"]
+        assert done["remote_workflow_id"] == ""
+        assert done["comfyui_url"] == "http://first.example:8188/comfy"
+        assert len(graphs) == 1
+        assert ("first.example", "/prompt", True) in requests
+        assert ("first.example", "/view", False) in requests
+        assert all(host == "first.example" for host, _, _ in requests)
+        assert done["cost"] is None
+        assert Path(done["outputs"][0]["path"]).read_bytes() == b"generated image"
+        assert done["outputs"][0]["name"] == "comfy_1.png"
+        assert done["outputs"][1] == {"kind": "text", "text": "描述文本", "node_id": "7"}
+        replay = store.load_task_workflow(task["id"])
+        assert replay["task"]["comfyui_url"] == done["comfyui_url"]
+        assert replay["workflow"]["sub:1"]["inputs"]["image"] == str(source)
+    finally:
+        manager.close()
+        manager._executor.shutdown(wait=True)
+        store.close()
