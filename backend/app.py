@@ -6486,9 +6486,9 @@ class TaskManager:
         submission_source: str = "local",
         project: dict[str, Any] | None = None,
         output_prefix: str | None = None,
-        execution_target: str = "runninghub",
+        execution_target: str | None = None,
     ) -> dict[str, Any]:
-        execution_target = str(execution_target or "runninghub").strip().lower()
+        execution_target = str(execution_target or self.store.comfyui_settings()["backend"]).strip().lower()
         if execution_target not in {"runninghub", "comfyui"}:
             raise RhCliError("INVALID_EXECUTION_TARGET", "请选择有效的执行平台。")
         comfyui_url = ""

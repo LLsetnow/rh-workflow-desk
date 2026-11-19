@@ -646,10 +646,13 @@ def test_telegram_video_inbound_sets_resolution_selector_from_video_orientation(
     assert workflow["17"]["inputs"]["aspect_ratio"] == expected
 
 
-def test_telegram_video_inbound_persists_measured_duration_in_task_snapshot(tmp_path, monkeypatch):
+@pytest.mark.parametrize("execution_backend", ["runninghub", "comfyui"])
+def test_telegram_video_inbound_persists_measured_duration_in_task_snapshot(tmp_path, monkeypatch, execution_backend):
     _configure_web_paths(tmp_path, monkeypatch)
     store = web_app.LocalStore()
     try:
+        comfyui_url = "http://127.0.0.1:8188"
+        store.set_comfyui_settings(comfyui_url, "", False, execution_backend)
         account = store.add_account("视频快照账号", "ai")
         workflow = {
             "1": {"class_type": "LoadVideo", "inputs": {"video": "input.mp4"}},
@@ -693,6 +696,8 @@ def test_telegram_video_inbound_persists_measured_duration_in_task_snapshot(tmp_
 
         task = store.task(task_id)
         assert task is not None
+        assert task["comfyui_url"] == (comfyui_url if execution_backend == "comfyui" else "")
+        assert task["remote_workflow_id"] == ("123456" if execution_backend == "runninghub" else "")
         snapshot = Path(task["output_dir"]) / task_id / "workflow_api.json"
         assert json.loads(snapshot.read_text(encoding="utf-8"))["14"]["inputs"]["value"] == 8.938
         assert json.loads(workflow_path.read_text(encoding="utf-8"))["14"]["inputs"]["value"] == 15
@@ -839,10 +844,13 @@ def test_telegram_inbound_submits_a_fresh_random_workflow_for_each_message(monke
     assert all(group["items"] == [] for group in submitted_prompt_groups)
 
 
-def test_telegram_inbound_saves_selected_workflow_and_prompt_group_to_task_folder(tmp_path, monkeypatch):
+@pytest.mark.parametrize("execution_backend", ["runninghub", "comfyui"])
+def test_telegram_inbound_saves_selected_workflow_and_prompt_group_to_task_folder(tmp_path, monkeypatch, execution_backend):
     _configure_web_paths(tmp_path, monkeypatch)
     store = web_app.LocalStore()
     try:
+        comfyui_url = "http://127.0.0.1:8188"
+        store.set_comfyui_settings(comfyui_url, "", False, execution_backend)
         account = store.add_account("Telegram 入站账号", "ai")
         group = {
             "id": "telegram-group",
@@ -893,6 +901,8 @@ def test_telegram_inbound_saves_selected_workflow_and_prompt_group_to_task_folde
 
         task = store.task(task_id)
         assert task is not None
+        assert task["comfyui_url"] == (comfyui_url if execution_backend == "comfyui" else "")
+        assert task["remote_workflow_id"] == ("123456" if execution_backend == "runninghub" else "")
         task_folder = Path(task["output_dir"]) / task_id
         workflow_snapshot = task_folder / "workflow_api.json"
         prompt_group_snapshot = task_folder / "prompt_group.json"
