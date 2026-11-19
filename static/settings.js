@@ -424,6 +424,7 @@
     setValue("personalCapacity", state.settings.personal_capacity || 3);
     setValue("apiKeyStrategy", state.settings.api_key_strategy || "personal_then_shared");
     var comfyui = state.settings.comfyui || {};
+    setValue("executionBackend", comfyui.backend || "runninghub");
     setValue("comfyuiUrl", comfyui.url || "");
     setValue("comfyuiToken", "");
     $("comfyuiToken").placeholder = comfyui.has_token ? "已保存" : "";
@@ -495,6 +496,7 @@
       comfyui_url: value("comfyuiUrl"),
       comfyui_token: value("comfyuiToken"),
       comfyui_clear_token: $("comfyuiClearToken").checked,
+      execution_backend: value("executionBackend"),
       pose_media_import_type: value("poseMediaImportType") || "depth",
       current_account_id: state.pendingAccountId || (state.settings && state.settings.current_account_id) || "__general__",
       media_library_root: value("mediaLibraryRoot")

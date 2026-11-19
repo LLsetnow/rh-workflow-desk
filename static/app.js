@@ -419,7 +419,6 @@
       projectId: taskProjectId,
       repeatCount: submitRepeatCount,
       taskName: submitTaskName,
-      executionTarget: executionTarget(),
       workflow: previous.workflow || null
     };
     if (appState.workflow && appState.analysis && appState.workflowId) {
@@ -588,7 +587,6 @@
       if (taskNameInput) taskNameInput.value = submitTaskName;
     }
     syncSubmitRepeatControl();
-    setExecutionTarget(draft.executionTarget);
     var savedWorkflow = draft.workflow;
     if (!savedWorkflow || !savedWorkflow.data || typeof savedWorkflow.data !== "object" || !savedWorkflow.analysis || typeof savedWorkflow.analysis !== "object") return false;
     appState.workflowId = String(savedWorkflow.id || "");
@@ -1096,27 +1094,17 @@
     element.textContent = message || "";
   }
 
-  function executionTarget() {
-    var select = $("executionTarget");
-    return select && select.value === "comfyui" ? "comfyui" : "runninghub";
-  }
-
-  function setExecutionTarget(value) {
-    var select = $("executionTarget");
-    if (!select) return;
-    select.value = value === "comfyui" ? "comfyui" : "runninghub";
-    renderExecutionTarget();
+  function usesComfyui() {
+    return appState.settings?.comfyui?.backend === "comfyui";
   }
 
   function renderExecutionTarget() {
-    var link = $("comfyuiServerLink");
-    if (!link) return;
-    var useComfyui = executionTarget() === "comfyui";
+    var status = $("comfyuiBackendStatus");
+    if (!status) return;
+    var useComfyui = usesComfyui();
     $("runningHubWorkflowFields").hidden = useComfyui;
     $("runningHubInstanceField").hidden = useComfyui;
-    $("comfyuiServerField").hidden = !useComfyui;
-    var connection = appState.settings && appState.settings.comfyui;
-    link.textContent = (connection && connection.url) || "配置服务器";
+    status.hidden = !useComfyui;
   }
 
   function setRemoteWorkflowId(value) {
@@ -2194,7 +2182,6 @@
         showToast("已载入工具箱任务，可再次复现：" + (savedTask.workflow_name || "本地处理"));
         return;
       }
-      setExecutionTarget(savedTask.comfyui_url ? "comfyui" : "runninghub");
       queuePromptGroupSnapshot(data.prompt_group);
       var promptGroup = promptGroupSnapshot(data.prompt_group);
       appState.workflowId = data.workflow_id || "";
@@ -3340,11 +3327,10 @@
     if (button.disabled) return;
     if (!appState.workflowId) return showToast("请先导入 API 工作流", true);
     var currentRemoteWorkflowId = $("remoteWorkflowId") ? $("remoteWorkflowId").value.trim() : "";
-    var target = executionTarget();
-    var useComfyui = target === "comfyui";
+    if (!appState.settings) return showToast("正在读取执行平台设置，请稍后重试", true);
+    var useComfyui = usesComfyui();
     if (useComfyui && !(appState.settings && appState.settings.comfyui && appState.settings.comfyui.url)) {
       showToast("请先在设置中保存 ComfyUI 服务器地址", true);
-      $("comfyuiServerLink").focus();
       return;
     }
     if (!useComfyui && !currentRemoteWorkflowId) {
@@ -3414,7 +3400,6 @@
       workflow_account_id: appState.workflowAccountId || null,
       workflow_input_config: appState.workflowInputConfig,
       remote_workflow_id: useComfyui ? "" : currentRemoteWorkflowId,
-      execution_target: target,
       files: values.files,
       prompts: values.prompts,
       custom_inputs: values.customInputs,
@@ -3828,10 +3813,6 @@
       updateThemeToggle();
     });
     $("workflowFile").addEventListener("change", function () { analyzeFile(this.files[0]); });
-    if ($("executionTarget")) $("executionTarget").addEventListener("change", function () {
-      renderExecutionTarget();
-      scheduleDraftSave();
-    });
     $("remoteWorkflowId").addEventListener("input", function () {
       appState.remoteWorkflowId = this.value.trim();
       scheduleDraftSave();

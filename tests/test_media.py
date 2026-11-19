@@ -27,6 +27,51 @@ def _configure_web_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(web_server, "DATA_ROOT", data_root)
 
 
+def test_workflow_submission_uses_saved_platform_over_http(tmp_path, monkeypatch):
+    _configure_web_paths(tmp_path, monkeypatch)
+    server = web_server.AppServer(("127.0.0.1", 0))
+    submitted_targets = []
+
+    def submit_task(*args, execution_target, **kwargs):
+        submitted_targets.append(execution_target)
+        return {"id": "mock-task"}
+
+    monkeypatch.setattr(server.manager, "submit_task", submit_task)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1])
+
+    def request(method, path, body, expected_status):
+        connection.request(method, path, json.dumps(body), {"Content-Type": "application/json"})
+        response = connection.getresponse()
+        payload = json.loads(response.read())
+        assert response.status == expected_status
+        return payload
+
+    try:
+        request("POST", "/api/tasks", {"execution_target": "comfyui"}, 202)
+        rejected = request("PATCH", "/api/settings", {"execution_backend": "comfyui"}, 400)
+        assert rejected["message"] == "选择 ComfyUI 后，请填写服务器地址。"
+        settings = request(
+            "PATCH", "/api/settings",
+            {"execution_backend": "comfyui", "comfyui_url": "http://127.0.0.1:8188"},
+            200,
+        )
+        assert settings["comfyui"]["backend"] == "comfyui"
+        request("POST", "/api/tasks", {"execution_target": "runninghub"}, 202)
+        rejected = request("PATCH", "/api/settings", {"comfyui_url": ""}, 400)
+        assert rejected["message"] == "选择 ComfyUI 后，请填写服务器地址。"
+        settings = request("PATCH", "/api/settings", {"execution_backend": "runninghub"}, 200)
+        assert settings["comfyui"]["url"] == "http://127.0.0.1:8188"
+        request("POST", "/api/tasks", {}, 202)
+        assert submitted_targets == ["runninghub", "comfyui", "runninghub"]
+    finally:
+        connection.close()
+        server.shutdown()
+        thread.join(timeout=1)
+        server.server_close()
+
+
 @pytest.mark.parametrize("project_id, expected", [
     ("project_a", {"a"}),
     ("project_b", {"b"}),

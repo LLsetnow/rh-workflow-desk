@@ -31,6 +31,7 @@ function replayRuntime(data) {
     },
   });
   vm.runInContext(source.slice(0, startup) + `
+    appState.settings = { comfyui: { backend: "runninghub" } };
     var restoredValues;
     request = function (url) {
       if (url !== "/api/tasks/" + replayData.task.id + "/load") throw new Error("Unexpected request: " + url);
@@ -93,6 +94,7 @@ async function submitReplay(data) {
   assert.equal(runtime.requests.length, 1);
   assert.equal(runtime.requests[0].url, "/api/tasks");
   assert.equal(runtime.requests[0].method, "POST");
+  assert.equal(Object.hasOwn(runtime.requests[0].body, "execution_target"), false);
   assert.equal(runtime.elements.get("submitButton").disabled, false);
   return runtime.requests[0].body;
 }

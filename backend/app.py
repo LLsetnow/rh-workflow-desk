@@ -2129,24 +2129,44 @@ class LocalStore:
         token = str(config.get("comfyui_token") or "") if url == saved_url else ""
         return url, token
 
-    def comfyui_settings(self) -> dict[str, Any]:
-        url, token = self.comfyui_connection()
-        return {"url": url, "has_token": bool(token)}
+    @staticmethod
+    def _execution_backend(config: dict[str, Any]) -> str:
+        return "comfyui" if config.get("execution_backend") == "comfyui" else "runninghub"
 
-    def set_comfyui_settings(self, url: str, token: str, clear_token: bool) -> dict[str, Any]:
-        url = normalize_comfyui_url(url)
-        token = token.strip()
-        if token and (not url or not re.fullmatch(r"[!-~]{1,8192}", token)):
-            raise RhCliError("INVALID_COMFYUI_TOKEN", "请填写有效的 Bearer Token 和 ComfyUI 地址。")
+    def comfyui_settings(self) -> dict[str, Any]:
         with self._lock:
             config = self._read_json_file()
-            if clear_token or config.get("comfyui_url") != url:
+        return {
+            "url": str(config.get("comfyui_url") or ""),
+            "has_token": bool(config.get("comfyui_token")),
+            "backend": self._execution_backend(config),
+        }
+
+    def set_comfyui_settings(
+        self, url: str | None, token: str, clear_token: bool, backend: str | None = None,
+    ) -> dict[str, Any]:
+        if backend is not None:
+            backend = backend.strip().lower()
+            if backend not in {"runninghub", "comfyui"}:
+                raise RhCliError("INVALID_EXECUTION_BACKEND", "请选择 RunningHub 或 ComfyUI 作为执行平台。")
+        token = token.strip()
+        with self._lock:
+            config = self._read_json_file()
+            saved_url = str(config.get("comfyui_url") or "")
+            url = saved_url if url is None else normalize_comfyui_url(url)
+            backend = backend or self._execution_backend(config)
+            if backend == "comfyui" and not url:
+                raise RhCliError("MISSING_COMFYUI_URL", "选择 ComfyUI 后，请填写服务器地址。")
+            if token and (not url or not re.fullmatch(r"[!-~]{1,8192}", token)):
+                raise RhCliError("INVALID_COMFYUI_TOKEN", "请填写有效的 Bearer Token 和 ComfyUI 地址。")
+            if clear_token or saved_url != url:
                 config.pop("comfyui_token", None)
             if token and not clear_token:
                 config["comfyui_token"] = token
             config["comfyui_url"] = url
+            config["execution_backend"] = backend
             self._write_json_file(config)
-        return self.comfyui_settings()
+            return {"url": url, "has_token": bool(config.get("comfyui_token")), "backend": backend}
 
     def aliyun_translation_credentials(self) -> tuple[str, str]:
         """Return local Aliyun translation credentials, falling back to env vars."""
@@ -6468,6 +6488,7 @@ class TaskManager:
         output_prefix: str | None = None,
         execution_target: str = "runninghub",
     ) -> dict[str, Any]:
+        execution_target = str(execution_target or "runninghub").strip().lower()
         if execution_target not in {"runninghub", "comfyui"}:
             raise RhCliError("INVALID_EXECUTION_TARGET", "请选择有效的执行平台。")
         comfyui_url = ""

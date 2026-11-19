@@ -1989,7 +1989,7 @@ class LocalHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/tasks":
                 body = self._body()
-                _, manager = self.state
+                store, manager = self.state
                 prompt_store = self.server.prompt_store  # type: ignore[attr-defined]
                 if "prompt_group" in body:
                     prompt_group = body.get("prompt_group")
@@ -2012,7 +2012,7 @@ class LocalHandler(BaseHTTPRequestHandler):
                         "project_name": body.get("project_name"),
                         "project_path": body.get("project_path"),
                     }
-                execution_target = str(body.get("execution_target") or "runninghub")
+                execution_target = store.comfyui_settings()["backend"]
                 if execution_target == "comfyui" and self.headers.get_content_type() != "application/json":
                     raise RhCliError("INVALID_CONTENT_TYPE", "ComfyUI 任务提交必须使用 application/json。")
                 task = manager.submit_task(
@@ -2128,11 +2128,12 @@ class LocalHandler(BaseHTTPRequestHandler):
                     "telegram": store.telegram_settings(),
                     "comfyui": store.comfyui_settings(),
                 }
-                if "comfyui_url" in body:
+                if "comfyui_url" in body or "execution_backend" in body:
                     result["comfyui"] = store.set_comfyui_settings(
-                        str(body.get("comfyui_url") or ""),
+                        str(body.get("comfyui_url") or "") if "comfyui_url" in body else None,
                         str(body.get("comfyui_token") or ""),
                         body.get("comfyui_clear_token") is True,
+                        str(body.get("execution_backend") or "") if "execution_backend" in body else None,
                     )
                 if "current_account_id" in body:
                     result["current_account_id"] = store.set_current_account(str(body.get("current_account_id") or ""))["id"]

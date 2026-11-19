@@ -4562,7 +4562,7 @@ def test_comfyui_submission_recovers_on_original_server(tmp_path, monkeypatch):
     manager = web_app.TaskManager(store)
     try:
         settings = store.set_comfyui_settings("http://first.example:8188/comfy/", "fixture-value", False)
-        assert settings == {"url": "http://first.example:8188/comfy", "has_token": True}
+        assert settings == {"url": "http://first.example:8188/comfy", "has_token": True, "backend": "runninghub"}
         assert manager.test_comfyui_connection()["message"] == "ComfyUI 连接成功"
         task = manager.submit_task(
             "", {"sub:1:image": str(source), "2:image": "", "5:image": "/missing/bypassed.png"},
