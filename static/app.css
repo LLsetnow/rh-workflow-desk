@@ -912,6 +912,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent-opaque); 
   .submit-workspace-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+@container workflow-shell (max-width: 334px) {
+  .topbar-actions .local-badge { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
   html.motion-page-enter:not(.motion-page-enter-active) .app-shell,
