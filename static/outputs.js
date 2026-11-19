@@ -1662,9 +1662,9 @@
     confirm.disabled = !selected;
   }
   function openOutputImport(item, button) {
-    if (!item || item.kind !== "file") return showToast("只有本地文件产物可以导入媒体", true);
-    if (["image", "video", "audio"].indexOf(String(item.display_type || "").toLowerCase()) === -1) return showToast("只有图片、视频或音频产物可以导入媒体", true);
-    var original = button ? button.textContent : "导入媒体";
+    if (!item || item.kind !== "file") return showToast("只有本地文件产物可导入到任务", true);
+    if (["image", "video", "audio"].indexOf(String(item.display_type || "").toLowerCase()) === -1) return showToast("只有图片、视频或音频产物可导入到任务", true);
+    var original = button ? button.textContent : "导入任务";
     if (button) {
       button.disabled = true;
       button.textContent = "读取中…";
@@ -2081,7 +2081,7 @@
       showToast("保存导入结果失败：" + error.message, true);
     } finally {
       button.disabled = false;
-      button.textContent = "导入媒体";
+      button.textContent = "导入任务";
     }
   }
   function deleteArtifactTask(item, button) {

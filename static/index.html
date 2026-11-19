@@ -81,21 +81,18 @@
         </a>
       </nav>
 
-      <section class="intro-block">
-        <div class="eyebrow">TASK SUBMIT / WORKSPACE</div>
-        <h1>把所有任务，<br /><em>收进一个提交台。</em></h1>
-        <p>在三个功能区之间切换：提交 RunningHub 或 ComfyUI 工作流、直接生成 Codex 图像，或把图片 / 视频处理成深度与骨骼素材。所有结果统一进入任务队列和成片库。</p>
+      <section class="workspace-heading">
+        <h1>任务提交</h1>
       </section>
 
       <div class="workspace">
         <main class="main-column">
           <div class="submit-workspace-tabs-sticky">
-            <div class="submit-workspace-tabs-heading"><div class="section-kicker">SUBMIT WORKSPACE</div><span>选择功能区</span></div>
             <div id="submitWorkspaceTabs" class="submit-workspace-tabs" role="tablist" aria-label="任务提交功能区">
-              <button id="submitWorkspaceTabSubmit" class="submit-workspace-tab active" data-submit-section="submit" type="button" role="tab" aria-selected="true" aria-controls="submitWorkspacePanelSubmit"><span class="submit-workspace-tab-index">01</span><span><strong>任务提交</strong><small>RunningHub / ComfyUI</small></span></button>
-              <button id="submitWorkspaceTabCodex" class="submit-workspace-tab" data-submit-section="codex" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelCodex"><span class="submit-workspace-tab-index">02</span><span><strong>Codex 图像生成</strong><small>文本 + 参考图</small></span></button>
-              <button id="submitWorkspaceTabMedia" class="submit-workspace-tab" data-submit-section="media" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelMedia"><span class="submit-workspace-tab-index">03</span><span><strong>深度与骨骼</strong><small>图片 + 视频</small></span></button>
-              <button id="submitWorkspaceTabTts" class="submit-workspace-tab" data-submit-section="tts" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelTts"><span class="submit-workspace-tab-index">04</span><span><strong>角色语音</strong><small>人物 + 文本</small></span></button>
+              <button id="submitWorkspaceTabSubmit" class="submit-workspace-tab active" data-submit-section="submit" type="button" role="tab" aria-selected="true" aria-controls="submitWorkspacePanelSubmit"><span><strong>任务提交</strong><small>RunningHub / ComfyUI</small></span></button>
+              <button id="submitWorkspaceTabCodex" class="submit-workspace-tab" data-submit-section="codex" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelCodex"><span><strong>Codex 图像生成</strong><small>文本 + 参考图</small></span></button>
+              <button id="submitWorkspaceTabMedia" class="submit-workspace-tab" data-submit-section="media" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelMedia"><span><strong>深度与骨骼</strong><small>图片 + 视频</small></span></button>
+              <button id="submitWorkspaceTabTts" class="submit-workspace-tab" data-submit-section="tts" type="button" role="tab" aria-selected="false" aria-controls="submitWorkspacePanelTts"><span><strong>角色语音</strong><small>人物 + 文本</small></span></button>
             </div>
           </div>
 
@@ -384,8 +381,8 @@
         </div>
         <div class="credential-heading pose-import-heading">
           <div>
-            <span class="field-label">动作导入媒体</span>
-            <span class="field-hint">动作库和组装台的“导入媒体”按钮可导入深度图或骨骼图，设置会同步到提示词工坊。</span>
+            <span class="field-label">动作导入内容</span>
+            <span class="field-hint">动作库和组装台的“导入任务”按钮可导入深度图或骨骼图，设置会同步到提示词工坊。</span>
           </div>
         </div>
         <div class="setting-grid pose-media-import-setting">

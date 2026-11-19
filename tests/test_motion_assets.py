@@ -171,7 +171,7 @@ def test_action_library_can_import_depth_into_task_load_image():
     assert "loadMediaTargets" in prompt_js
     assert "is-disabled" in prompt_js
     assert '已保存到任务草稿' in prompt_js
-    assert '>导入媒体</button>' in prompt_js
+    assert '>导入任务</button>' in prompt_js
     assert "canonicalWorkflowName" in app_js
     assert "modifiedWorkflowName" in app_js
     assert 'link.download = modifiedWorkflowName(sourceName)' in app_js

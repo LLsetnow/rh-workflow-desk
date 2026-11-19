@@ -67,7 +67,7 @@
     select.innerHTML = options;
     select.value = selected || "";
   }
-  function workflowCard(record) {
+  function workflowCard(record, draggable) {
     var bound = Boolean(record.account_id);
     var selected = state.selectedWorkflowId === record.id;
     var loading = state.loadingWorkflowId === record.id;
@@ -81,8 +81,8 @@
       return "<span>" + esc(item[0]) + " <strong>" + esc(item[1]) + "</strong></span>";
     }).join("");
     var status = record.analysis_error ? "JSON 异常" : (bound ? "已绑定账号" : "待绑定账号");
-    return '<article class="workflow-card' + (bound ? "" : " is-unbound") + (selected ? " is-selected" : "") + '" draggable="true" data-workflow-drag-id="' + esc(record.id) + '" data-workflow-folder-id="' + esc(record.folder_id || "") + '">' +
-      '<div class="workflow-card-top"><button class="workflow-card-title workflow-card-title-button" type="button" data-action="edit-workflow" data-workflow-id="' + esc(record.id) + '" aria-label="编辑工作流：' + esc(record.name) + '" title="编辑工作流"><strong title="' + esc(record.name) + '">' + esc(record.name) + '</strong><small title="' + esc(record.id) + '">' + esc(record.id) + '</small></button><span class="workflow-status' + (bound ? "" : " unbound") + '">' + status + '</span></div>' +
+    return '<article class="workflow-card' + (bound ? "" : " is-unbound") + (selected ? " is-selected" : "") + '" draggable="' + (draggable === false ? "false" : "true") + '" data-workflow-drag-id="' + esc(record.id) + '" data-workflow-folder-id="' + esc(record.folder_id || "") + '">' +
+      '<div class="workflow-card-top"><button class="workflow-card-title workflow-card-title-button" type="button" data-action="edit-workflow" data-workflow-id="' + esc(record.id) + '" aria-label="编辑工作流：' + esc(record.name) + '" title="编辑工作流"><strong title="' + esc(record.name) + '">' + esc(record.name) + '</strong><small title="' + esc(record.id) + '">' + esc(record.id) + '</small></button><span class="workflow-status' + (record.analysis_error ? " is-error" : bound ? "" : " unbound") + '">' + status + '</span></div>' +
       '<button class="workflow-card-body" type="button" data-action="select-workflow" data-workflow-id="' + esc(record.id) + '" aria-pressed="' + (selected ? "true" : "false") + '" aria-busy="' + (loading ? "true" : "false") + '"' + (loading ? " disabled" : "") + ' aria-label="加载工作流快照：' + esc(record.name) + '" title="加载到任务提交页和提示词工坊：复制到临时工作流快照">' +
       '<div class="workflow-card-meta">' +
       '<div class="workflow-meta-row"><span>所属账号</span><span title="' + esc(accountLabel(record)) + '">' + esc(accountLabel(record)) + '</span></div>' +
@@ -120,7 +120,7 @@
   function workflowCollection(title, subtitle, records, dropId, emptyMessage) {
     var dropAttribute = dropId == null ? "" : ' data-folder-drop-id="' + esc(dropId) + '"';
     var collectionClass = dropId === "" ? " workflow-unclassified-collection" : "";
-    var cards = records.length ? '<div class="workflow-group-cards" data-workflow-folder-id="' + esc(dropId || "") + '">' + records.map(workflowCard).join("") + '</div>' : '<div class="workflow-empty"><strong>' + esc(emptyMessage) + '</strong><span>将工作流拖到这里即可归类。</span></div>';
+    var cards = records.length ? '<div class="workflow-group-cards" data-workflow-folder-id="' + esc(dropId || "") + '">' + records.map(function (record) { return workflowCard(record); }).join("") + '</div>' : '<div class="workflow-empty"><strong>' + esc(emptyMessage) + '</strong><span>将工作流拖到这里即可归类。</span></div>';
     return '<section class="workflow-group workflow-folder-collection' + collectionClass + '"' + dropAttribute + '><div class="workflow-group-heading"><div><strong>' + esc(title) + '</strong><span>' + esc(subtitle) + '</span></div><code>' + records.length + ' 个工作流</code></div>' + cards + '</section>';
   }
   function workflowUnclassifiedDropzone() {
@@ -129,10 +129,23 @@
   function renderWorkflows() {
     var activeFolder = folderRecord(state.activeFolderId);
     var visible = activeFolder ? recordsInFolder(activeFolder.id) : state.workflows;
-    $("workflowCount").textContent = String(visible.length);
     $("workflowTotal").textContent = String(state.workflows.length);
     $("workflowBound").textContent = String(state.workflows.filter(function (item) { return Boolean(item.account_id); }).length);
     $("accountTotal").textContent = String(state.accounts.length);
+    var query = $("workflowSearch").value.trim().toLocaleLowerCase();
+    if (query) {
+      var matches = visible.filter(function (record) {
+        return [record.name, record.id, record.remote_workflow_id].some(function (value) {
+          return String(value || "").toLocaleLowerCase().includes(query);
+        });
+      });
+      $("workflowCount").textContent = String(matches.length);
+      $("workflowGroups").innerHTML = matches.length
+        ? '<div class="workflow-group-cards workflow-search-results">' + matches.map(function (record) { return workflowCard(record, false); }).join("") + '</div>'
+        : '<div class="workflow-empty"><strong>找不到匹配的工作流</strong></div>';
+      return;
+    }
+    $("workflowCount").textContent = String(visible.length);
     var folderHeader = activeFolder ? '<div class="workflow-folder-breadcrumb"><button class="workflow-folder-back" type="button" data-action="back-to-folders">文件夹</button><span aria-hidden="true">/</span><strong>' + esc(activeFolder.name) + '</strong></div>' : '<div class="workflow-folder-browser-title"><strong>文件夹</strong><span>可将 API JSON 直接拖到本区域添加，卡片之间可调整顺序，也可拖入文件夹</span></div>';
     var folderHeaderActions = activeFolder ? "" : '<div class="workflow-folder-header-actions"><span class="workflow-folder-count">' + state.folders.length + ' 个文件夹</span><button id="createWorkflowFolder" class="secondary-button button-compact workflow-folder-create-button" type="button"><span aria-hidden="true">＋</span> 新建文件夹</button></div>';
     var folderCards = state.folders.length ? state.folders.map(workflowFolderCard).join("") : '<div class="workflow-folder-empty">还没有文件夹。点击“新建文件夹”开始整理。</div>';
@@ -1084,7 +1097,7 @@
   }
   function handleWorkflowDragStart(event) {
     var card = event.target.closest("[data-workflow-drag-id]");
-    if (!card || state.workflowOrderSaving) return;
+    if (!card || !card.draggable || state.workflowOrderSaving) return;
     state.draggingWorkflowId = card.dataset.workflowDragId || "";
     state.draggingWorkflowFolderId = card.dataset.workflowFolderId || "";
     state.workflowDragDidReorder = false;
@@ -1346,6 +1359,7 @@
     $("refreshWorkflows").addEventListener("click", function () {
       refreshWorkflowLibrary();
     });
+    $("workflowSearch").addEventListener("input", renderWorkflows);
     $("workflowGroups").addEventListener("click", handleWorkflowAction);
     $("workflowGroups").addEventListener("keydown", handleFolderNameKeydown);
     $("workflowGroups").addEventListener("blur", handleFolderNameBlur, true);

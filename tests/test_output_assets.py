@@ -185,7 +185,7 @@ def test_output_file_cards_can_import_into_a_task_file_input():
     assert "任务提交面板已同步" in script
     assert "fileInputMediaKind" in script
     assert "没有找到匹配的文件输入节点" in script
-    assert "只有图片、视频或音频产物可以导入媒体" in script
+    assert "只有图片、视频或音频产物可导入到任务" in script
     assert 'id="artifactContextMenu"' in page
     assert 'data-artifact-menu-action="upload"' in page
     assert 'data-artifact-menu-action="import"' in page
@@ -243,7 +243,7 @@ def test_output_workflow_names_load_the_task_draft_and_open_submit_page():
     assert 'window.RHMotion.taskSubmitUrl()' in script
     assert ".finally(function ()" in script
     assert ".artifact-workflow-link" in styles
-    assert "导入媒体" in script
+    assert "导入任务" in script
     assert "queuePromptGroupSnapshot(data.prompt_group)" in script
 
 
@@ -681,7 +681,7 @@ def test_settings_exposes_pose_media_import_type():
         assert 'id="poseMediaImportType"' in markup
         assert 'value="depth"' in markup
         assert 'value="skeleton"' in markup
-        assert "动作导入媒体" in markup
+        assert "动作导入内容" in markup
     assert "savePoseMediaImportType" in app_script
     assert "pose_media_import_type" in app_script
     assert "pose_media_import_type" in settings_script

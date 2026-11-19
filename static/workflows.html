@@ -81,12 +81,8 @@
       </nav>
 
       <main class="workflows-main">
-        <section class="workflows-hero">
-          <div>
-            <div class="eyebrow">WORKFLOW LIBRARY / LOCAL JSON</div>
-            <h1>把工作流，<br /><em>整理成自己的库。</em></h1>
-            <p>工作流库保存可复用的完整工作流包；导入和加载都先进入临时快照，任务提交后还会生成独立的不可变任务快照。</p>
-          </div>
+        <section class="workspace-heading">
+          <h1>工作流库</h1>
           <div class="workflows-hero-stats">
             <div class="workflow-hero-stat"><span>工作流</span><strong id="workflowTotal">0</strong></div>
             <div class="workflow-hero-stat"><span>已绑定账号</span><strong id="workflowBound">0</strong></div>
@@ -96,10 +92,11 @@
 
         <section class="panel workflows-toolbar" aria-label="工作流管理工具">
           <div class="workflows-toolbar-heading">
-            <div>
-              <div class="section-kicker">LOCAL WORKFLOWS</div>
-              <h2>工作流库 <span id="workflowCount" class="workflows-count">0</span></h2>
-            </div>
+            <label class="workflow-search">
+              <span class="sr-only">搜索工作流</span>
+              <input id="workflowSearch" type="search" placeholder="搜索工作流名称或 ID" autocomplete="off" aria-controls="workflowGroups" />
+            </label>
+            <span id="workflowCount" class="workflows-count" role="status" aria-label="工作流数量">0</span>
             <button id="refreshWorkflows" class="secondary-button button-compact" type="button"><span aria-hidden="true">↻</span> 刷新</button>
           </div>
           <div class="workflow-import-row">

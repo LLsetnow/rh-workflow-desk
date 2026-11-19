@@ -81,12 +81,8 @@
       </nav>
 
       <main>
-        <section class="prompt-intro">
-          <div>
-            <div class="eyebrow">PROMPT BUILDER / BLOCKS</div>
-            <h1>把提示词，<br /><em>拼成一条可复用的思路。</em></h1>
-            <p>把常用表达做成固定积木，把姿势参考放进动作库，把每次变化留给自由文本。按顺序加入、调整，右侧会实时生成一份可以直接复制的提示词。</p>
-          </div>
+        <section class="workspace-heading">
+          <h1>提示词工坊</h1>
           <div class="prompt-intro-note process-nav" aria-label="使用方式">
             <span class="process-index">01—03</span>
             <span class="process-step active">挑选积木</span>
@@ -170,8 +166,8 @@
               </div>
               <div class="output-actions">
                 <button id="copyPrompt" class="secondary-button button-compact" type="button">复制文本</button>
-                <button id="importPrompt" class="secondary-button button-compact import-prompt-button" type="button">导入提示词</button>
-                <button id="importMedia" class="secondary-button button-compact import-media-button" type="button" disabled title="请先导入包含 MiniMax H3 节点的工作流">导入媒体</button>
+                <button id="importPrompt" class="secondary-button button-compact import-prompt-button" type="button">导入任务 · 文本</button>
+                <button id="importMedia" class="secondary-button button-compact import-media-button" type="button" disabled title="请先导入包含 MiniMax H3 节点的工作流">导入任务 · 媒体</button>
                 <button id="downloadPrompt" class="primary-button button-compact" type="button">导出 TXT</button>
               </div>
               <div class="output-preview-wrap">
@@ -304,7 +300,7 @@
         <div id="depthImportTargets" class="depth-import-targets" role="radiogroup" aria-label="LoadImage 节点"></div>
         <div class="dialog-actions">
           <button id="cancelDepthImport" class="secondary-button" type="button">取消</button>
-          <button id="confirmDepthImport" class="primary-button" type="button" disabled>导入媒体</button>
+          <button id="confirmDepthImport" class="primary-button" type="button" disabled>导入任务</button>
         </div>
       </section>
     </div>

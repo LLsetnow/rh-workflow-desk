@@ -54,18 +54,12 @@ body.is-focus-resizing { cursor: col-resize; user-select: none; }
 /* Prevent standalone-page spacing from creating a visual break between panels. */
 .focus-page-slot .topbar,
 .focus-page-slot .top-nav { display: none; }
-.focus-page-slot .intro-block,
-.focus-page-slot .prompt-intro,
-.focus-page-slot .workflows-hero,
-.focus-page-slot .outputs-hero,
-.focus-page-slot .dashboard-hero,
-.focus-page-slot .settings-hero { display: none; }
-.focus-page-slot .settings-main { margin-top: 0; }
+.focus-page-slot .workspace-heading { display: none; }
 
-/* The embedded task page is intentionally narrower than a standalone page.
-   Keep its queue beside the workflow inputs instead of letting the shared
-   responsive rules stack it underneath inside the focus workspace. */
-.focus-panel[data-focus-page="submit"] .workspace { grid-template-columns: minmax(0, 1.55fr) minmax(340px, .9fr); }
+/* Keep the queue beside the form while the panel can fit both columns. */
+@container workflow-shell (min-width: 720px) {
+  .focus-panel[data-focus-page="submit"] .workspace { grid-template-columns: minmax(0, 1.55fr) minmax(340px, .9fr); }
+}
 
 @media (max-width: 1180px) {
   .focus-header { grid-template-columns: minmax(180px, 1fr) auto; }

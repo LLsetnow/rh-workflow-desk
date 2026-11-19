@@ -81,16 +81,10 @@
       </nav>
 
       <main class="outputs-main">
-        <section class="outputs-hero">
-          <div>
-            <div class="eyebrow">OUTPUT LIBRARY / LOCAL FILES</div>
-            <h1>把所有产物，<br /><em>放在一处回看。</em></h1>
-            <p>这里聚合本地任务已经生成的图片、视频、音频和文本。产物不会被复制，浏览时直接读取你设置的本地输出目录。</p>
-          </div>
+        <section class="workspace-heading">
+          <h1>成片</h1>
           <div class="outputs-hero-stat">
-            <span class="outputs-stat-kicker">AVAILABLE NOW</span>
-            <strong id="heroTotal">0</strong>
-            <span>个本地文件</span>
+            <span><strong id="heroTotal">0</strong> 个本地文件</span>
             <small id="heroUpdated">等待读取任务历史</small>
           </div>
         </section>
@@ -220,7 +214,7 @@
         <div class="modal-heading">
           <div>
             <div class="section-kicker">IMPORT OUTPUT</div>
-            <h2 id="outputImportTitle">导入媒体</h2>
+            <h2 id="outputImportTitle">导入任务</h2>
           </div>
           <button id="closeOutputImport" class="close-button" type="button" aria-label="关闭导入">×</button>
         </div>
@@ -229,7 +223,7 @@
         <div id="outputImportTargets" class="output-import-targets" role="radiogroup" aria-label="文件输入节点"></div>
         <div class="output-import-actions">
           <button id="cancelOutputImport" class="secondary-button" type="button">取消</button>
-          <button id="confirmOutputImport" class="primary-button" type="button" disabled>导入媒体</button>
+          <button id="confirmOutputImport" class="primary-button" type="button" disabled>导入任务</button>
         </div>
       </section>
     </div>
@@ -339,7 +333,7 @@
     </div>
     <div id="artifactContextMenu" class="artifact-context-menu" role="menu" aria-label="成片操作" hidden>
       <button type="button" role="menuitem" data-artifact-menu-action="upload">上传</button>
-      <button type="button" role="menuitem" data-artifact-menu-action="import">导入媒体</button>
+      <button type="button" role="menuitem" data-artifact-menu-action="import">导入任务</button>
       <button type="button" role="menuitem" data-artifact-menu-action="open-folder">打开所在文件夹</button>
       <button type="button" role="menuitem" data-artifact-menu-action="move-project">移动到项目</button>
       <button type="button" role="menuitem" data-artifact-menu-action="rename">重命名结果文件</button>

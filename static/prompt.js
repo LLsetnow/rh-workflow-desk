@@ -1589,11 +1589,11 @@
         showToast("已导入 " + imageCount + " 张图片、" + audioCount + " 条音频和 " + videoCount + " 个视频，任务提交页草稿已更新");
       });
     }).catch(function (error) {
-      showToast("导入媒体失败：" + error.message, true);
+      showToast("导入任务失败：" + error.message, true);
     }).finally(function () {
       if (button && button.isConnected) {
         button.disabled = false;
-        button.textContent = "导入媒体";
+        button.textContent = "导入任务 · 媒体";
       }
     });
   }
@@ -1691,9 +1691,9 @@
     return label === "骨骼图" ? "IMPORT SKELETON MAP" : label === "深度图" ? "IMPORT DEPTH MAP" : "IMPORT TO WORKFLOW";
   }
   function applyWorkflowImportDialogLabels(title, label) {
-    $("depthImportTitle").textContent = title || "导入媒体";
+    $("depthImportTitle").textContent = title || "导入任务";
     $("depthImportKicker").textContent = workflowImportKicker(label || "");
-    $("confirmDepthImport").textContent = "导入媒体";
+    $("confirmDepthImport").textContent = "导入任务";
   }
   function openDepthImport(action) {
     var poseImportInfo = actionPoseImportInfo(action);
@@ -1717,7 +1717,7 @@
     workflowImportAsset = asset;
     workflowImportMediaKind = ["image", "video", "audio"].indexOf(asset.mediaKind) !== -1 ? asset.mediaKind : "image";
     renderDepthImportTargets(readTaskDraft());
-    applyWorkflowImportDialogLabels("导入媒体", asset.label || "");
+    applyWorkflowImportDialogLabels("导入任务", asset.label || "");
     window.RHMotion.openModal("depthImportModal", "closeDepthImport");
   }
   function openWorkflowImportFromTrigger(trigger) {
@@ -1772,7 +1772,7 @@
     depthImportActionId = "";
     workflowImportAsset = null;
     workflowImportMediaKind = "image";
-    applyWorkflowImportDialogLabels("导入媒体", "");
+    applyWorkflowImportDialogLabels("导入任务", "");
     window.RHMotion.closeModal("depthImportModal");
   }
   function confirmWorkflowImport() {
@@ -1806,7 +1806,7 @@
     }).finally(function () {
       if ($("confirmDepthImport")) {
         $("confirmDepthImport").disabled = false;
-        $("confirmDepthImport").textContent = "导入媒体";
+        $("confirmDepthImport").textContent = "导入任务";
       }
     });
   }
@@ -2261,7 +2261,7 @@
     var stageTitle = isText ? "自由文本" : (item.title || (isMedia ? item.mediaName : "固定积木") || "固定积木");
     var stageTitleButton = '<button class="stage-block-title-button" type="button" data-edit-stage="' + index + '" title="编辑组装台积木" aria-label="编辑组装台积木：' + esc(stageTitle) + '"><h3>' + esc(stageTitle) + '</h3></button>';
     var importWorkflowButton = canImportWorkflow
-      ? '<button class="import-workflow-button stage-workflow-import" type="button" data-import-workflow data-import-workflow-kind="' + (isAction ? "action" : "reference") + '" data-import-workflow-id="' + esc(item.sourceId) + '"' + (isAction && sourceActionImport && sourceActionImport.kind ? ' data-import-workflow-media-kind="video" data-import-workflow-variant="' + esc(sourceActionImport.kind) + '"' : '') + ' title="选择 ' + (isAction && sourceActionImport && sourceActionImport.kind ? "LoadVideo" : "LoadImage") + ' 节点并导入' + (isAction ? sourceActionImport.label : "图片") + '">导入媒体</button>'
+      ? '<button class="import-workflow-button stage-workflow-import" type="button" data-import-workflow data-import-workflow-kind="' + (isAction ? "action" : "reference") + '" data-import-workflow-id="' + esc(item.sourceId) + '"' + (isAction && sourceActionImport && sourceActionImport.kind ? ' data-import-workflow-media-kind="video" data-import-workflow-variant="' + esc(sourceActionImport.kind) + '"' : '') + ' title="选择 ' + (isAction && sourceActionImport && sourceActionImport.kind ? "LoadVideo" : "LoadImage") + ' 节点并导入' + (isAction ? sourceActionImport.label : "图片") + '">导入任务</button>'
       : "";
     var mediaControlsMarkup = isMedia
       ? '<div class="stage-media-controls"><div class="stage-media-control-buttons"><button class="stage-media-select" type="button" data-open-media-stage data-media-stage-index="' + index + '">选择文件</button><button class="stage-media-paste" type="button" data-paste-media-stage data-media-stage-index="' + index + '">粘贴图片</button></div><span class="stage-media-drop-hint">拖入图片、音频或视频到卡片任意位置可替换</span></div>'

@@ -12,7 +12,7 @@ MODAL_MARKUP = ("index.html", "prompt.html", "outputs.html", "workflows.html", "
 def test_task_controls_share_one_font_size_and_line_height_token():
     css = (STATIC_ROOT / "app.css").read_text(encoding="utf-8")
 
-    assert "--control-font-size: 11px;" in css
+    assert "--control-font-size: 13px;" in css
     assert "--control-line-height: 1.25;" in css
     assert "input, select, textarea {" in css
     assert "font-size: var(--control-font-size);" in css
@@ -709,9 +709,7 @@ def test_focus_mode_tiles_six_pages_and_converts_shift_wheel_to_horizontal_scrol
     assert ".focus-panel.is-hidden, .focus-panel-divider.is-hidden { display: none; }" in styles
     assert ".focus-nav-icon { color: var(--accent);" in styles
     assert ".focus-navigation .focus-nav-link.is-hidden { color: var(--subtle);" in styles
-    assert ".focus-page-slot .intro-block," in styles
-    assert ".focus-page-slot .settings-hero { display: none; }" in styles
-    assert ".focus-page-slot .settings-main { margin-top: 0; }" in styles
+    assert ".focus-page-slot .workspace-heading { display: none; }" in styles
     assert "scroll-snap-type" not in styles
     assert "postMessage" not in shared_motion
     assert "is-focus-embedded" not in shared_motion
@@ -837,7 +835,8 @@ def test_workflow_library_uses_folder_hierarchy_and_drag_targets():
     assert ".workflow-card-body.is-selected" not in styles
     assert "box-shadow: 0 0 0 1px var(--type-strong);" in styles
     assert '(selected ? " is-selected" : "")' in script
-    assert "workflowSearch" not in markup
+    assert 'id="workflowSearch" type="search"' in markup
+    assert '$("workflowSearch").addEventListener("input", renderWorkflows)' in script
     assert "workflowAccountFilter" not in markup
 
 
@@ -1144,7 +1143,7 @@ def test_prompt_workbench_builds_minimax_media_inputs_from_current_stage():
     server = (BACKEND_ROOT / "server.py").read_text(encoding="utf-8")
 
     assert 'id="importMedia"' in markup
-    assert 'type="button" disabled title="请先导入包含 MiniMax H3 节点的工作流">导入媒体</button>' in markup
+    assert 'type="button" disabled title="请先导入包含 MiniMax H3 节点的工作流">导入任务 · 媒体</button>' in markup
     assert "function currentWorkflowContext()" in script
     assert "MiniMax H3 节点" in script
     assert "function usedReferenceMedia()" in script
@@ -1429,7 +1428,7 @@ def test_prompt_output_imports_sync_the_task_panel_and_keep_standalone_fallback(
     script = (STATIC_ROOT / "prompt.js").read_text(encoding="utf-8")
 
     assert 'id="importPrompt"' in markup
-    assert '>导入提示词</button>' in markup
+    assert '>导入任务 · 文本</button>' in markup
     import_prompt = script[script.index("function importPromptToTask()"):script.index("function bindEvents()")]
     assert 'localStorage.setItem(TASK_PROMPT_IMPORT_KEY' in import_prompt
     assert 'notifySubmitImport({ kind: "prompt" })' in import_prompt

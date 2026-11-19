@@ -60,13 +60,9 @@
       </nav>
 
       <main class="settings-main">
-        <section class="settings-hero">
-          <div>
-            <div class="eyebrow">LOCAL SETTINGS / CONTROL ROOM</div>
-            <h1>把本机配置，<br /><em>整理成一处可靠的控制台。</em></h1>
-            <p>所有配置先保留在当前页面，确认后由右下角统一保存。路径、密钥和账号数据都只写入本机。</p>
-          </div>
-          <div class="settings-hero-status"><span class="status-dot"></span><span id="settingsSaveState">已保存</span></div>
+        <section class="workspace-heading">
+          <h1>设置</h1>
+          <div class="settings-hero-status"><span class="status-dot"></span><span id="settingsSaveState" role="status">已保存</span></div>
         </section>
 
         <div id="settingsUnsavedNotice" class="settings-unsaved-notice" hidden>
@@ -192,7 +188,7 @@
                 </div>
               </article>
               <article class="settings-card">
-                <div class="settings-card-heading"><div><h3>动作导入媒体</h3><p>控制动作库和组装台中的“导入媒体”按钮：选择将动作的深度图或骨骼图写入当前工作流的 LoadImage 节点。</p></div></div>
+                <div class="settings-card-heading"><div><h3>动作导入内容</h3><p>控制动作库和组装台中的“导入任务”按钮：选择将动作的深度图或骨骼图写入当前工作流的 LoadImage 节点。</p></div></div>
                 <div class="settings-form-grid">
                   <label class="field-group"><span class="field-label">默认导入类型</span><select id="poseMediaImportType"><option value="depth">深度图</option><option value="skeleton">骨骼图</option></select><span class="field-hint">深度图适合空间结构参考；骨骼图适合姿势约束。没有对应文件的动作不会提供导入按钮。</span></label>
                 </div>

@@ -1,8 +1,4 @@
 .settings-shell { min-height: 100vh; }
-.settings-main { margin-top: 32px; }
-.settings-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 6px 2px 24px; }
-.settings-hero h1 { max-width: 760px; }
-.settings-hero p { max-width: 680px; }
 .settings-hero-status { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--line-soft); border-radius: 999px; color: var(--muted); background: var(--panel); font-size: 11px; white-space: nowrap; }
 .settings-hero-status.is-dirty { color: var(--warm); border-color: var(--warm-strong); background: var(--warm-ghost); }
 .settings-unsaved-notice { display: flex; align-items: center; gap: 10px; min-height: 46px; margin: 0 0 18px; padding: 12px 15px; border: 1px solid var(--warm-strong); border-radius: 12px; color: var(--warm); background: var(--warm-ghost); font-size: 12px; }
@@ -23,11 +19,11 @@
 .settings-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 0 0 17px; }
 .settings-section-heading h2 { margin: 4px 0 0; font-size: 25px; letter-spacing: -.02em; }
 .settings-section-heading p { margin: 7px 0 0; color: var(--subtle); font-size: 11px; line-height: 1.6; }
-.settings-card { margin-top: 14px; padding: 23px 25px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
+.settings-card { margin-top: 12px; padding: var(--panel-padding); border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
 .settings-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .settings-card-heading h3 { margin: 0; color: var(--ink); font-size: 15px; letter-spacing: -.01em; }
 .settings-card-heading p { max-width: 680px; margin: 6px 0 0; color: var(--subtle); font-size: 10px; line-height: 1.6; }
-.settings-form-grid { display: grid; gap: 14px; margin-top: 20px; }
+.settings-form-grid { display: grid; gap: 12px; margin-top: 16px; }
 .settings-form-grid.two-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .settings-path-row { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
 .settings-path-row + .settings-path-row { margin-top: 15px; }
@@ -127,7 +123,6 @@
 @keyframes settings-save-pulse { 0%, 100% { box-shadow: 0 14px 34px var(--accent-outline); } 50% { box-shadow: 0 16px 42px var(--accent-focus); } }
 
 :root[data-theme="light"] .settings-sidebar { border-right: 1px solid var(--line-soft); }
-:root[data-theme="light"] .settings-card { background: var(--light-strong); }
 :root[data-theme="light"] .settings-unsaved-notice { background: var(--warm-ghost); }
 
 @media (max-width: 900px) {
@@ -139,10 +134,6 @@
   .settings-resource-list .reference-path-control { min-width: 0; }
 }
 @media (max-width: 650px) {
-  .settings-main { margin-top: 18px; }
-  .settings-hero { display: block; padding-bottom: 17px; }
-  .settings-hero-status { margin-top: 15px; }
-  .settings-card { padding: 19px; border-radius: 15px; }
   .settings-form-grid.two-columns, .settings-path-row { grid-template-columns: 1fr; }
   .telegram-function-block { padding: 13px; }
   .settings-inline-actions, .settings-inline-actions .secondary-button { width: 100%; }

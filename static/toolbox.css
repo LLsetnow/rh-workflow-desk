@@ -1,10 +1,3 @@
-body {
-  background:
-    radial-gradient(circle at 86% 7%, var(--accent-ghost), transparent 25rem),
-    radial-gradient(circle at 12% 66%, var(--warm-ghost), transparent 28rem),
-    linear-gradient(180deg, var(--canvas) 0%, var(--canvas-deep) 100%);
-}
-
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -19,13 +12,10 @@ body {
 
 .toolbox-shell { padding-bottom: 72px; }
 .toolbox-main { min-width: 0; }
-.toolbox-hero { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin: 55px 8px 32px; }
-.toolbox-hero p { max-width: 700px; margin-top: 18px; color: var(--muted); font-size: 14px; line-height: 1.75; text-wrap: pretty; }
 .toolbox-hero-status { display: flex; flex: 0 0 auto; align-items: center; gap: 13px; min-width: 188px; padding: 14px 16px; border: 1px solid var(--accent-fill); border-radius: 14px; background: var(--accent-ghost); }
 .toolbox-status-orbit { display: grid; place-items: center; width: 31px; height: 31px; border: 1px solid var(--accent-outline); border-radius: 50%; background: var(--surface-deep); }
 .toolbox-status-orbit .status-dot { width: 7px; height: 7px; }
 .toolbox-hero-status > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
-.toolbox-status-kicker { color: var(--accent); font-size: 9px; font-weight: 750; letter-spacing: .14em; }
 .toolbox-hero-status strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .toolbox-hero-status small { color: var(--subtle); font-size: 10px; }
 
@@ -37,7 +27,7 @@ body {
 .toolbox-block-number { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border: 1px solid var(--accent-outline); border-radius: 10px; color: var(--accent); background: var(--accent-ghost); font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; font-weight: 750; }
 .toolbox-block-chip { flex: 0 0 auto; margin-top: 2px; padding: 5px 7px; border: 1px solid var(--line-soft); border-radius: 6px; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 8px; letter-spacing: .08em; }
 .toolbox-description { margin: 15px 0 20px; color: var(--subtle); font-size: 11px; line-height: 1.65; }
-.toolbox-auto-command-note { display: flex; align-items: center; gap: 10px; margin-top: 17px; padding: 10px 11px; border: 1px solid var(--accent-outline); border-radius: 11px; background: var(--accent-ghost); }
+.toolbox-auto-command-note { display: flex; align-items: center; gap: 10px; margin-top: 17px; padding: 10px 11px; border: 1px solid var(--accent-outline); border-radius: var(--small-radius); background: var(--accent-soft); }
 .toolbox-auto-command-mark { display: grid; flex: 0 0 auto; place-items: center; width: 25px; height: 25px; border: 1px solid var(--accent-outline); border-radius: 8px; color: var(--accent); background: var(--surface-deep); font-size: 13px; }
 .toolbox-auto-command-note > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .toolbox-auto-command-note strong { color: var(--ink); font-size: 10px; }
@@ -59,7 +49,7 @@ body {
 .toolbox-duration-field { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--subtle); font-size: 9px; line-height: 1.5; }
 .toolbox-duration-field input { width: 130px; min-width: 0; }
 .toolbox-duration-field span { min-width: 0; }
-.toolbox-dropzone { display: flex; align-items: center; gap: 10px; min-height: 62px; margin-top: 8px; padding: 10px 12px; border: 1px dashed var(--accent-outline); border-radius: 12px; color: var(--muted); background: var(--surface-deep); cursor: pointer; transition: border-color var(--motion-interaction) ease, background var(--motion-interaction) ease, transform var(--motion-interaction) ease; }
+.toolbox-dropzone { display: flex; align-items: center; gap: 10px; min-height: 62px; margin-top: 8px; padding: 10px 12px; border: 1px dashed var(--border-drop); border-radius: 12px; color: var(--muted); background: var(--surface-deep); cursor: pointer; transition: border-color var(--motion-interaction) ease, background var(--motion-interaction) ease, transform var(--motion-interaction) ease; }
 .toolbox-dropzone:hover, .toolbox-dropzone:focus-visible, .toolbox-dropzone.is-dragging { border-color: var(--accent); background: var(--accent-ghost); outline: none; transform: translateY(-1px); }
 .toolbox-dropzone > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .toolbox-dropzone strong { color: var(--ink); font-size: 11px; }
@@ -82,7 +72,7 @@ body {
 .toolbox-inline-status.is-error { color: var(--danger); }
 .toolbox-inline-status.is-running { color: var(--warm); }
 .toolbox-inline-status.is-complete { color: var(--accent); }
-.toolbox-task-result { margin-top: 15px; padding: 11px 12px; border: 1px solid var(--accent-fill); border-radius: 11px; background: var(--accent-ghost); }
+.toolbox-task-result { margin-top: 15px; padding: 11px 12px; border: 1px solid var(--line-soft); border-radius: var(--small-radius); background: var(--panel); }
 .toolbox-task-result[hidden] { display: none; }
 .toolbox-task-result-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .toolbox-task-result-title { color: var(--ink); font-size: 11px; font-weight: 700; }
@@ -100,7 +90,7 @@ body {
 .tts-workspace-panel textarea { min-height: 158px; }
 .tts-runtime-note .toolbox-auto-command-mark { color: var(--warm); border-color: var(--warm-outline); background: var(--warm-ghost); }
 
-.toolbox-media-input-card { margin-top: 18px; padding: 10px; border: 1px solid var(--accent-outline); border-radius: 14px; background: var(--surface-raised); }
+.toolbox-media-input-card { margin-top: 18px; padding: 12px; border: 1px solid var(--line-soft); border-radius: var(--small-radius); background: var(--surface-deep); }
 .toolbox-media-input-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 1px 2px 8px; }
 .toolbox-media-input-head > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .toolbox-media-input-head strong { color: var(--ink); font-size: 11px; }
@@ -136,19 +126,13 @@ body {
 .toolbox-recent-task { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 13px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface-deep); }
 .toolbox-recent-task-title { overflow: hidden; color: var(--ink); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .toolbox-recent-task-id, .toolbox-recent-task-progress { overflow: hidden; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.toolbox-recent-task-status { padding: 4px 7px; border-radius: 999px; color: var(--subtle); background: var(--surface-control-muted); font-size: 9px; white-space: nowrap; }
-.toolbox-recent-task-status.is-completed { color: var(--accent); background: var(--accent-ghost); }
-.toolbox-recent-task-status.is-running, .toolbox-recent-task-status.is-queued { color: var(--warm); background: var(--warm-ghost); }
-.toolbox-recent-task-status.is-failed { color: var(--danger); background: var(--danger-ghost); }
 
 @media (max-width: 980px) {
-  .toolbox-hero { align-items: start; flex-direction: column; }
   .toolbox-hero-status { align-self: stretch; }
   .toolbox-block-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 650px) {
-  .toolbox-hero { margin-top: 34px; margin-bottom: 23px; }
   .toolbox-block, .toolbox-history-panel { padding: 18px; }
   .toolbox-block-heading h2 { font-size: 18px; }
   .toolbox-block-chip { display: none; }
