@@ -2,6 +2,14 @@
 
 `rh-workflow-desk` 是纯本地 RunningHub 工作流桌面应用，提供 Electron 和浏览器入口。仓库根目录承载应用，原 RH CLI 作为 [cli/](cli/README.md) 子功能保留；后端继续复用它的 RunningHub 客户端。
 
+## 界面演示
+
+![RH Workflow Desk 任务提交页，显示示例工作流的导入和输入配置](docs/assets/workflow-desk-demo.png)
+
+导入示例 ComfyUI API 工作流后，可以在任务提交页配置参考图、提示词和提交参数。
+
+## 本地目录与数据
+
 源码按职责分层：`backend/` 保存 Python 服务与业务模块，`static/` 是唯一的浏览器静态资源目录，`electron/` 保存桌面主进程，`scripts/` 保存启动和打包脚本。仓库根目录是应用入口，Python CLI 位于 `cli/`。
 
 - `data/keys.json`：本地 API Key（权限 600）
