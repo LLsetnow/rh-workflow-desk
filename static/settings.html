@@ -105,9 +105,6 @@
               <div class="settings-section-heading"><div><div class="section-kicker">PLATFORM CONFIGURATION</div><h2>平台配置</h2><p>这里集中管理本机输出位置、并发数、默认账号和 API Key。</p></div></div>
               <article class="settings-card">
                 <div class="settings-card-heading"><div><h3>本机运行参数</h3><p>任务提交时会使用这些默认值。</p></div></div>
-                <div class="settings-form-grid">
-                  <label class="field-group"><span class="field-label">执行平台</span><select id="executionBackend"><option value="runninghub">RunningHub</option><option value="comfyui">ComfyUI</option></select></label>
-                </div>
                 <div class="settings-form-grid settings-path-row">
                   <label class="field-group"><span class="field-label">默认产物目录</span><input id="outputDir" type="text" placeholder="data/outputs" /></label>
                   <div class="settings-inline-actions"><button id="chooseOutputDir" class="secondary-button" type="button">选择文件夹</button></div>
@@ -121,6 +118,9 @@
               </article>
               <article class="settings-card">
                 <div class="settings-card-heading"><h3>ComfyUI 服务器</h3></div>
+                <div class="settings-form-grid">
+                  <label class="field-group"><span class="field-label">处理后端</span><select id="executionBackend"><option value="runninghub">RunningHub</option><option value="comfyui">ComfyUI</option></select></label>
+                </div>
                 <div class="settings-form-grid two-columns">
                   <label class="field-group"><span class="field-label">服务器地址</span><input id="comfyuiUrl" type="text" autocomplete="off" spellcheck="false" placeholder="127.0.0.1:8188 或 https://comfy.example.com" /></label>
                   <label class="field-group"><span class="field-label">Bearer Token（可选）</span><input id="comfyuiToken" type="password" autocomplete="new-password" /></label>
