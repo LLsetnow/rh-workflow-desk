@@ -6,6 +6,8 @@
   var taskProjectId = "";
   var submitRepeatCount = 1;
   var submitTaskName = "";
+  var submitExecutionTarget = "";
+  var submitExecutionTargetExplicit = false;
   var appState = { workflowId: "", remoteWorkflowId: "", workflow: null, workflowName: "", workflowSourceDir: "", workflowAccountId: "", workflowInputConfig: null, analysis: null, workflowDirty: false, bypassedNodes: {}, keys: [], accounts: [], currentAccountId: "", tasks: [], taskPage: 1, settings: null, loading: false, activeFileInputId: "", configEditor: null, mediaInputBusy: false };
   var previewUrls = {};
   var previewFiles = {};
@@ -419,6 +421,7 @@
       projectId: taskProjectId,
       repeatCount: submitRepeatCount,
       taskName: submitTaskName,
+      executionTarget: submitExecutionTargetExplicit ? currentExecutionTarget() : "",
       workflow: previous.workflow || null
     };
     if (appState.workflow && appState.analysis && appState.workflowId) {
@@ -586,6 +589,9 @@
       var taskNameInput = $("taskName");
       if (taskNameInput) taskNameInput.value = submitTaskName;
     }
+    submitExecutionTargetExplicit = ["runninghub", "comfyui"].indexOf(String(draft.executionTarget || "")) !== -1;
+    submitExecutionTarget = submitExecutionTargetExplicit ? String(draft.executionTarget) : "";
+    renderExecutionTarget();
     syncSubmitRepeatControl();
     var savedWorkflow = draft.workflow;
     if (!savedWorkflow || !savedWorkflow.data || typeof savedWorkflow.data !== "object" || !savedWorkflow.analysis || typeof savedWorkflow.analysis !== "object") return false;
@@ -1094,17 +1100,22 @@
     element.textContent = message || "";
   }
 
+  function currentExecutionTarget() {
+    if (submitExecutionTargetExplicit && ["runninghub", "comfyui"].indexOf(submitExecutionTarget) !== -1) return submitExecutionTarget;
+    return appState.settings?.comfyui?.backend === "comfyui" ? "comfyui" : "runninghub";
+  }
+
   function usesComfyui() {
-    return appState.settings?.comfyui?.backend === "comfyui";
+    return currentExecutionTarget() === "comfyui";
   }
 
   function renderExecutionTarget() {
-    var status = $("comfyuiBackendStatus");
-    if (!status) return;
+    var select = $("executionTarget");
+    if (!select) return;
+    select.value = currentExecutionTarget();
     var useComfyui = usesComfyui();
     $("runningHubWorkflowFields").hidden = useComfyui;
     $("runningHubInstanceField").hidden = useComfyui;
-    status.hidden = !useComfyui;
   }
 
   function setRemoteWorkflowId(value) {
@@ -2185,6 +2196,9 @@
       queuePromptGroupSnapshot(data.prompt_group);
       var promptGroup = promptGroupSnapshot(data.prompt_group);
       appState.workflowId = data.workflow_id || "";
+      submitExecutionTarget = savedTask.comfyui_url ? "comfyui" : "runninghub";
+      submitExecutionTargetExplicit = true;
+      renderExecutionTarget();
       appState.remoteWorkflowId = String(savedTask.remote_workflow_id || (data.analysis && data.analysis.remote_workflow_id) || "").trim();
       appState.workflow = data.workflow || null;
       appState.workflowName = canonicalWorkflowName(savedTask.workflow_name || data.filename || "workflow_api.json");
@@ -3400,6 +3414,7 @@
       workflow_account_id: appState.workflowAccountId || null,
       workflow_input_config: appState.workflowInputConfig,
       remote_workflow_id: useComfyui ? "" : currentRemoteWorkflowId,
+      execution_target: currentExecutionTarget(),
       files: values.files,
       prompts: values.prompts,
       custom_inputs: values.customInputs,
@@ -4008,6 +4023,12 @@
       }
     }, true);
     $("submitButton").addEventListener("click", submitTask);
+    $("executionTarget").addEventListener("change", function () {
+      submitExecutionTarget = this.value === "comfyui" ? "comfyui" : "runninghub";
+      submitExecutionTargetExplicit = true;
+      renderExecutionTarget();
+      saveDraftNow();
+    });
     $("taskProject").addEventListener("change", function () {
       taskProjectId = $("taskProject").value;
       saveDraftNow();

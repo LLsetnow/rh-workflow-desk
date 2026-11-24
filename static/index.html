@@ -119,12 +119,18 @@
             </label>
             <div id="analysisStatus" class="inline-status" hidden></div>
             <div id="workflowRemoteConfig" class="workflow-remote-config" hidden>
+              <label class="field-group" for="executionTarget">
+                <span class="field-label">本次执行平台</span>
+                <select id="executionTarget">
+                  <option value="runninghub">RunningHub</option>
+                  <option value="comfyui">本地 ComfyUI</option>
+                </select>
+              </label>
               <label id="runningHubWorkflowFields" class="field-group" for="remoteWorkflowId">
                 <span class="field-label">RunningHub workflowId <span class="required-mark">必填</span></span>
                 <input id="remoteWorkflowId" type="text" inputmode="numeric" autocomplete="off" placeholder="输入 RunningHub 工作流 ID" />
                 <span class="field-hint">这是远程工作流 ID，不是本地 wf_... ID；可从 RunningHub 工作流页面 URL 获取。</span>
               </label>
-              <div id="comfyuiBackendStatus" class="field-group" hidden><span class="field-label">处理后端</span><span>ComfyUI</span></div>
             </div>
             <div id="workflowSummary" class="workflow-summary" hidden></div>
             <div id="workflowInputs" class="workflow-inputs" hidden></div>

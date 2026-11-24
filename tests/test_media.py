@@ -27,7 +27,7 @@ def _configure_web_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(web_server, "DATA_ROOT", data_root)
 
 
-def test_workflow_submission_uses_saved_platform_over_http(tmp_path, monkeypatch):
+def test_workflow_submission_can_override_saved_platform_over_http(tmp_path, monkeypatch):
     _configure_web_paths(tmp_path, monkeypatch)
     server = web_server.AppServer(("127.0.0.1", 0))
     submitted_targets = []
@@ -64,7 +64,7 @@ def test_workflow_submission_uses_saved_platform_over_http(tmp_path, monkeypatch
         settings = request("PATCH", "/api/settings", {"execution_backend": "runninghub"}, 200)
         assert settings["comfyui"]["url"] == "http://127.0.0.1:8188"
         request("POST", "/api/tasks", {}, 202)
-        assert submitted_targets == ["runninghub", "comfyui", "runninghub"]
+        assert submitted_targets == ["comfyui", "runninghub", "runninghub"]
     finally:
         connection.close()
         server.shutdown()

@@ -2012,7 +2012,7 @@ class LocalHandler(BaseHTTPRequestHandler):
                         "project_name": body.get("project_name"),
                         "project_path": body.get("project_path"),
                     }
-                execution_target = store.comfyui_settings()["backend"]
+                execution_target = str(body.get("execution_target") or store.comfyui_settings()["backend"])
                 if execution_target == "comfyui" and self.headers.get_content_type() != "application/json":
                     raise RhCliError("INVALID_CONTENT_TYPE", "ComfyUI 任务提交必须使用 application/json。")
                 task = manager.submit_task(
