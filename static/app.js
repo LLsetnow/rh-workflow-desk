@@ -2,6 +2,7 @@
   "use strict";
 
   var TASK_PAGE_SIZE = 20;
+  var CLIPBOARD_IMAGE_LIMIT = 8 * 1024 * 1024;
   var taskProjects = [];
   var taskProjectId = "";
   var submitRepeatCount = 1;
@@ -2286,9 +2287,9 @@
     });
   }
 
-  function clipboardImageName(file) {
-    var name = String(file && file.name || "").trim();
-    if (name) return name;
+  function clipboardImageName(file, outputType) {
+    var name = String(file.name || "").trim();
+    if (name && !outputType) return name;
     var extension = {
       "image/avif": ".avif",
       "image/bmp": ".bmp",
@@ -2296,8 +2297,86 @@
       "image/jpeg": ".jpg",
       "image/png": ".png",
       "image/webp": ".webp"
-    }[String(file && file.type || "").toLowerCase()] || ".png";
-    return "clipboard-image" + extension;
+    }[String(outputType || file.type || "").toLowerCase()] || ".png";
+    return (name.replace(/\.[^.]+$/, "") || "clipboard-image") + extension;
+  }
+
+  async function compressClipboardImage(file) {
+    var bitmap = await createImageBitmap(file).catch(function () {
+      throw new Error("无法读取剪贴板图片");
+    });
+    var canvas = document.createElement("canvas");
+    var originalEdge = Math.max(bitmap.width, bitmap.height);
+    var drawnEdge = 0;
+    var minQuality = 0.8;
+    var maxQuality = 0.98;
+
+    function encode(edge, quality) {
+      if (edge !== drawnEdge) {
+        canvas.width = Math.max(1, Math.round(bitmap.width * edge / originalEdge));
+        canvas.height = Math.max(1, Math.round(bitmap.height * edge / originalEdge));
+        var context = canvas.getContext("2d");
+        if (!context) return Promise.resolve(null);
+        context.imageSmoothingQuality = "high";
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        drawnEdge = edge;
+      }
+      return new Promise(function (resolve) { canvas.toBlob(resolve, "image/webp", quality); });
+    }
+
+    function fits(blob) {
+      return blob && blob.size <= CLIPBOARD_IMAGE_LIMIT;
+    }
+
+    try {
+      var edge = originalEdge;
+      var best = await encode(edge, maxQuality);
+      if (!fits(best)) {
+        // Keep the original resolution if it fits at the minimum quality.
+        best = best && best.type === "image/webp" ? await encode(edge, minQuality) : best;
+        if (!fits(best)) {
+          var tooLarge = edge;
+          while (!fits(best) && edge > 1) {
+            tooLarge = edge;
+            edge = Math.ceil(edge / 2);
+            best = await encode(edge, minQuality);
+          }
+          if (!fits(best)) throw new Error("无法将剪贴板图片压缩到 8 MB 以内");
+
+          // Search between the largest fitting size and the first oversize result.
+          for (var i = 0; i < 7 && tooLarge - edge > 1; i += 1) {
+            var trialEdge = Math.floor((edge + tooLarge) / 2);
+            var trial = await encode(trialEdge, minQuality);
+            if (fits(trial)) {
+              edge = trialEdge;
+              best = trial;
+            } else {
+              tooLarge = trialEdge;
+            }
+          }
+        }
+        if (best.type === "image/webp") {
+          for (var j = 0; j < 5; j += 1) {
+            var quality = (minQuality + maxQuality) / 2;
+            var candidate = await encode(edge, quality);
+            if (fits(candidate)) {
+              best = candidate;
+              minQuality = quality;
+            } else {
+              maxQuality = quality;
+            }
+          }
+        }
+      }
+      return {
+        blob: best,
+        width: Math.max(1, Math.round(bitmap.width * edge / originalEdge)),
+        height: Math.max(1, Math.round(bitmap.height * edge / originalEdge))
+      };
+    } finally {
+      bitmap.close();
+      canvas.width = 0;
+    }
   }
 
   function setPastedImageState(inputId, selected, originalName) {
@@ -2321,37 +2400,59 @@
     scheduleDraftSave();
   }
 
-  function pasteClipboardImage(inputId, file) {
+  async function pasteClipboardImage(inputId, file) {
     inputId = String(inputId || "").trim();
     if (!inputId || !file || String(file.type || "").indexOf("image/") !== 0) {
-      return Promise.reject(new Error("剪贴板中没有图片"));
+      throw new Error("剪贴板中没有图片");
     }
     var expectedKind = expectedPreviewKind(inputId);
     if (expectedKind && expectedKind !== "image") {
-      return Promise.reject(new Error((expectedKind === "video" ? "视频" : "音频") + "节点不能粘贴图片，请选择" + (expectedKind === "video" ? "视频" : "音频") + "文件"));
+      throw new Error((expectedKind === "video" ? "视频" : "音频") + "节点不能粘贴图片，请选择" + (expectedKind === "video" ? "视频" : "音频") + "文件");
     }
-    if (isNodeBypassed(String(inputId).split(":", 1)[0])) return Promise.reject(new Error("该输入节点已旁路"));
+    var nodeId = inputId.split(":", 1)[0];
+    if (isNodeBypassed(nodeId)) throw new Error("该输入节点已旁路");
     rememberFileInput(inputId);
     var zone = document.querySelector('.file-dropzone[data-input-id="' + CSS.escape(inputId) + '"]');
-    var card = zone && zone.closest(".file-input-card");
+    if (!zone || zone.hasAttribute("aria-busy")) return;
+    var card = zone.closest(".file-input-card");
+    var path = card && card.querySelector(".file-path");
+    var originalPath = path && path.value;
+    var originalPreview = previewUrls[inputId];
+    function canApplyPaste() {
+      return zone.isConnected && zone.classList.contains("is-loading") && !isNodeBypassed(nodeId) &&
+        (!path || path.value === originalPath) && previewUrls[inputId] === originalPreview;
+    }
+
     if (card) card.classList.add("is-loading");
-    if (zone) zone.classList.add("is-loading");
-    var name = clipboardImageName(file);
-    return fileToBase64(file).then(function (data) {
-      return jsonRequest("/api/paste-file", "POST", {
+    zone.classList.add("is-loading");
+    zone.setAttribute("aria-busy", "true");
+    try {
+      var compressed = file.size > CLIPBOARD_IMAGE_LIMIT ? await compressClipboardImage(file) : null;
+      var image = compressed ? compressed.blob : file;
+      var name = clipboardImageName(file, compressed && image.type);
+      if (!canApplyPaste()) return;
+      var data = await fileToBase64(image);
+      if (!canApplyPaste()) return;
+      var selected = await jsonRequest("/api/paste-file", "POST", {
         name: name,
-        mime: file.type || "image/png",
+        mime: image.type,
         data: data
       });
-    }).then(function (selected) {
+      if (!canApplyPaste()) return;
       setPastedImageState(inputId, selected, name);
-      showToast("已粘贴图片并保存到本地输入缓存");
+      if (compressed) {
+        var originalSize = (file.size / (1024 * 1024)).toFixed(2);
+        var finalSize = (selected.size / (1024 * 1024)).toFixed(2);
+        showToast(`图片超过 8 MB，已压缩并导入（${originalSize} → ${finalSize} MB，${compressed.width} × ${compressed.height} px）`);
+      } else {
+        showToast("已粘贴图片并保存到本地输入缓存");
+      }
       return selected;
-    }).catch(function (error) {
+    } finally {
       if (card) card.classList.remove("is-loading");
-      if (zone) zone.classList.remove("is-loading");
-      throw error;
-    });
+      zone.classList.remove("is-loading");
+      zone.removeAttribute("aria-busy");
+    }
   }
 
   function readClipboardImage() {
