@@ -483,9 +483,11 @@
     grid.innerHTML = records.length ? records.map(function (record) { return outputProjectCard(record, false); }).join("") : '<div class="output-project-empty"><strong>还没有项目</strong><span>新建项目后，可从成片右键菜单将任务归入其中。</span></div>';
   }
   function costLabel(item) {
-    if (!item.cost) return "";
+    if (item.cost == null || String(item.cost).trim() === "") return "";
+    if (item.cost_type === "points") return "消耗 " + item.cost + " 积分";
+    if (item.cost_type === "coins") return "消耗 " + item.cost + " RH 币";
     if (item.cost_type === "money") return (window.RHCost ? window.RHCost.moneySymbol(item) : "$") + item.cost;
-    return "消耗 " + item.cost + " RH 币";
+    return "";
   }
   function costTitle(item) {
     return window.RHCost ? window.RHCost.tooltip(item) : "";

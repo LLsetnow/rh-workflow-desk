@@ -34,10 +34,11 @@
 
 ### 费用展示
 
-任务完成时，后端已经从 RunningHub 输出中的 `consumeCoins` 或 `consumeMoney` 保存 `cost_type` 和 `cost`。前端新增统一格式化函数：
+任务完成时，后端从 RunningHub 返回值保存 `cost_type` 和 `cost`。前端按类型显示：
 
-- `cost_type === "coins"`：`消耗 {cost} RH 币`
-- `cost_type === "money"`：按任务凭据站点显示 `消耗 ¥{cost}` 或 `消耗 ${cost}`
+- `consumePoint` / `consumePoints` 保存为 `cost_type === "points"`，显示 `消耗 {cost} 积分`
+- `consumeCoins` 保存为 `cost_type === "coins"`，继续显示 `消耗 {cost} RH 币`，不重写历史任务
+- `consumeMoney` 保存为 `cost_type === "money"`，按任务凭据站点显示人民币或美元金额
 - 任务尚未完成或没有费用字段：显示“费用待返回”或保持空白，不猜测金额
 
 任务队列卡片在任务底部显示费用标签；任务详情弹窗的元信息区域显示同样的费用信息。旧任务没有费用字段时兼容展示，不修改数据库历史数据。
@@ -78,8 +79,8 @@
 Ctrl + Enter / 点击加入任务队列
   -> submitTask()
   -> 现有本地任务创建与远程执行
-  -> outputs 返回 consumeCoins / consumeMoney
-  -> 后端保存 cost_type + cost
+  -> outputs 返回 consumePoint(s) / consumeCoins / consumeMoney
+  -> 后端按原始计费类型保存 cost_type + cost
   -> /api/state 返回任务费用
   -> 队列卡片和详情弹窗格式化展示
 ```
@@ -104,7 +105,7 @@ Ctrl + Enter / 点击加入任务队列
 - 静态检查确认快捷键只绑定主页面，并调用现有 `submitTask()`。
 - 检查文件输入卡片在拖入、悬停、离开和放下时正确添加/移除拖动状态，叠加层不阻挡交互。
 - 检查所有文件/提示词输入都有对应标签，点击标签能滚动到正确卡片并显示定位高亮。
-- 使用带 `coins`、`money`、零值和缺失费用的任务数据检查格式化结果。
+- 使用带 `points`、`coins`、`money`、零值和缺失费用的任务数据检查格式化结果，并确认旧 `coins` 任务仍显示 RH 币。
 - 运行现有 Web 与 workflow 测试，确认任务费用字段、输出产物和现有提交逻辑不回归。
 - 启动 Electron 开发版检查页面资源和本地健康检查；不发起真实远程任务。
 

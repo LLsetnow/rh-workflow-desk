@@ -627,8 +627,11 @@
     }
     var symbol = key.symbol || (key.site === "cn" ? "¥" : "$");
     var balance = key.balance == null || key.balance === "" ? "—" : key.balance;
-    var coins = key.coins == null || key.coins === "" ? "—" : key.coins;
-    return '<div class="credential-balance"><span><span class="credential-balance-label">余额</span> <strong>' + esc(symbol) + esc(balance) + '</strong><span class="credential-coins"> · ' + esc(coins) + ' RH 币</span></span>' +
+    var balances = [];
+    if (key.points != null && key.points !== "") balances.push(esc(key.points) + ' 积分');
+    if (key.coins != null && key.coins !== "") balances.push(esc(key.coins) + ' RH 币');
+    var balanceLabels = balances.length ? '<span class="credential-coins"> · ' + balances.join(' · ') + '</span>' : '';
+    return '<div class="credential-balance"><span><span class="credential-balance-label">余额</span> <strong>' + esc(symbol) + esc(balance) + '</strong>' + balanceLabels + '</span>' +
       '<span class="credential-balance-time">更新于 ' + esc(relativeTime(key.balance_checked_at)) + '</span></div>';
   }
 
@@ -679,10 +682,12 @@
   }
 
   function accountRewardMarkup(account) {
-    var reward = account.daily_coin == null ? "" : String(account.daily_coin).trim();
+    var pointReward = account.daily_points == null ? "" : String(account.daily_points).trim();
+    var coinReward = account.daily_coin == null ? "" : String(account.daily_coin).trim();
     var balance = account.balance == null ? "" : String(account.balance).trim();
     var details = [];
-    if (reward) details.push('<strong>+' + esc(reward) + ' RH 币</strong> 今日登录奖励');
+    if (pointReward) details.push('<strong>+' + esc(pointReward) + ' 积分</strong> 今日登录奖励');
+    if (coinReward) details.push('<strong>+' + esc(coinReward) + ' RH 币</strong> 今日登录奖励');
     if (balance) details.push('余额 ' + esc(balance));
     if (!details.length) details.push('尚未读取今日登录奖励或余额');
     var checked = Number(account.last_checkin_at) ? ' · 上次签到 ' + esc(relativeTime(account.last_checkin_at)) : '';
@@ -725,6 +730,7 @@
     if (!task || task.cost == null || String(task.cost).trim() === "" || !task.cost_type) {
       return task && task.status === "completed" ? "费用未返回" : "";
     }
+    if (task.cost_type === "points") return "消耗 " + String(task.cost) + " 积分";
     if (task.cost_type === "coins") return "消耗 " + String(task.cost) + " RH 币";
     if (task.cost_type === "money") {
       var symbol = task.key_site === "ai" ? "$" : (task.key_site === "cn" ? "¥" : "");

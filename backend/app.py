@@ -1320,6 +1320,7 @@ def public_key(record: dict[str, Any]) -> dict[str, Any]:
         "capacity": int(record.get("capacity") or key_capacity(record.get("api_type", ""))),
         "active_tasks": int(record.get("active_tasks", 0)),
         "balance": record.get("balance", ""),
+        "points": record.get("points", ""),
         "coins": record.get("coins", ""),
         "symbol": record.get("symbol", "¥" if record["site"] == "cn" else "$"),
         "balance_checked_at": int(record.get("balance_checked_at") or 0),
@@ -1340,6 +1341,7 @@ def public_account(record: dict[str, Any]) -> dict[str, Any]:
         "status_message": str(record.get("status_message") or ""),
         "last_login_at": int(record.get("last_login_at") or 0),
         "last_checkin_at": int(record.get("last_checkin_at") or 0),
+        "daily_points": str(record.get("daily_points") or ""),
         "daily_coin": str(record.get("daily_coin") or ""),
         "balance": str(record.get("balance") or ""),
         "checked_at": int(record.get("checked_at") or 0),
@@ -1690,6 +1692,7 @@ class LocalStore:
                             "capacity": configured_capacity,
                             "active_tasks": 0,
                             "balance": "",
+                            "points": "",
                             "coins": "",
                             "symbol": "¥" if site == "cn" else "$",
                             "balance_checked_at": 0,
@@ -1820,6 +1823,7 @@ class LocalStore:
                         "status_message": str(item.get("status_message") or "首次使用请登录账号"),
                         "last_login_at": int(item.get("last_login_at") or 0),
                         "last_checkin_at": int(item.get("last_checkin_at") or 0),
+                        "daily_points": str(item.get("daily_points") or ""),
                         "daily_coin": str(item.get("daily_coin") or ""),
                         "balance": str(item.get("balance") or ""),
                         "checked_at": int(item.get("checked_at") or 0),
@@ -1849,6 +1853,7 @@ class LocalStore:
                         "status_message": str(item.get("status_message") or ""),
                         "last_login_at": int(item.get("last_login_at") or 0),
                         "last_checkin_at": int(item.get("last_checkin_at") or 0),
+                        "daily_points": str(item.get("daily_points") or ""),
                         "daily_coin": str(item.get("daily_coin") or ""),
                         "balance": str(item.get("balance") or ""),
                         "checked_at": int(item.get("checked_at") or 0),
@@ -1867,6 +1872,7 @@ class LocalStore:
             "status_message": "请在打开的 RunningHub 窗口完成登录",
             "last_login_at": 0,
             "last_checkin_at": 0,
+            "daily_points": "",
             "daily_coin": "",
             "balance": "",
             "checked_at": 0,
@@ -1885,7 +1891,7 @@ class LocalStore:
             raise RhCliError("ACCOUNT_NOT_FOUND", "找不到这个账号。")
         for field in (
             "name", "site", "status", "status_message", "last_login_at",
-            "last_checkin_at", "daily_coin", "balance", "checked_at",
+            "last_checkin_at", "daily_points", "daily_coin", "balance", "checked_at",
         ):
             if field not in changes:
                 continue
@@ -6299,6 +6305,7 @@ class TaskManager:
             "capacity": self.store.personal_capacity(),
             "active_tasks": 0,
             "balance": "",
+            "points": "",
             "coins": "",
             "symbol": "¥" if site == "cn" else "$",
             "balance_checked_at": 0,
@@ -6324,10 +6331,14 @@ class TaskManager:
 
     def _update_balance(self, record: dict[str, Any], data: dict[str, Any]) -> None:
         site = record["site"]
+        if data.get("remainMoney") is not None:
+            record["balance"] = str(data["remainMoney"])
+        if data.get("remainPoint") is not None:
+            record["points"] = str(data["remainPoint"])
+        if data.get("remainCoins") is not None:
+            record["coins"] = str(data["remainCoins"])
         record.update(
             {
-                "balance": str(data.get("remainMoney") if data.get("remainMoney") is not None else "0"),
-                "coins": str(data.get("remainCoins") if data.get("remainCoins") is not None else "0"),
                 "symbol": "¥" if site == "cn" else "$",
                 "balance_checked_at": now_ms(),
             }
@@ -6336,7 +6347,7 @@ class TaskManager:
     def _apply_key_health(self, record: dict[str, Any], data: dict[str, Any], *, checked: bool) -> None:
         """Synchronize balance refreshes with the scheduler's key health."""
         self._update_balance(record, data)
-        if not any(field in data for field in ("remainMoney", "remainCoins")):
+        if not any(field in data for field in ("remainMoney", "remainPoint", "remainCoins")):
             if checked:
                 record["checked_at"] = now_ms()
             return
@@ -6408,7 +6419,7 @@ class TaskManager:
 
     @staticmethod
     def _has_balance(data: dict[str, Any]) -> bool:
-        for field in ("remainMoney", "remainCoins"):
+        for field in ("remainMoney", "remainPoint", "remainCoins"):
             try:
                 if float(data.get(field) or 0) > 0:
                     return True
@@ -7459,11 +7470,22 @@ class TaskManager:
     def _task_cost(outputs: list[dict[str, Any]]) -> tuple[str | None, str | None, Any]:
         if not outputs:
             return None, None, None
-        first = outputs[0]
-        for field, cost_type in (("consumeCoins", "coins"), ("consumeMoney", "money")):
-            if first.get(field) is not None and str(first.get(field)).strip():
-                return cost_type, str(first[field]), first.get("taskCostTime")
-        return None, None, first.get("taskCostTime")
+        first = outputs[0] if isinstance(outputs[0], dict) else {}
+        usage = first.get("usage") if isinstance(first.get("usage"), dict) else {}
+        duration = first.get("taskCostTime")
+        if duration is None:
+            duration = usage.get("taskCostTime")
+        for field, cost_type in (
+            ("consumePoint", "points"),
+            ("consumePoints", "points"),
+            ("consumeCoins", "coins"),
+            ("consumeMoney", "money"),
+        ):
+            for source in (usage, first):
+                value = source.get(field)
+                if value is not None and str(value).strip():
+                    return cost_type, str(value), duration
+        return None, None, duration
 
 
 def public_state(
@@ -7888,7 +7910,8 @@ def _balance_key_priority(record: dict[str, Any]) -> tuple[int, int, int, str]:
     balance_checked_at = int(record.get("balance_checked_at") or 0)
     checked_at = int(record.get("checked_at") or 0)
     has_balance = int(
-        _decimal_value(record.get("coins")) is not None
+        _decimal_value(record.get("points")) is not None
+        or _decimal_value(record.get("coins")) is not None
         or _decimal_value(record.get("balance")) is not None
     )
     has_snapshot = int(balance_checked_at > 0 and has_balance)
@@ -8117,6 +8140,7 @@ def public_dashboard(
     active_task_ids = {str(record.get("task_id") or "") for record in active_records}
     workflow_scores = _dashboard_workflow_scores(store, manager, active_task_ids, tasks=current_tasks)
 
+    total_points = 0.0
     total_coins = 0.0
     money_spent: dict[str, dict[str, Any]] = {}
     total_seconds = 0.0
@@ -8134,7 +8158,9 @@ def public_dashboard(
             video_task_count += 1
         output_count += int(record.get("output_count") or 0)
         cost = _decimal_value(record.get("cost"))
-        if str(record.get("cost_type") or "") == "coins" and cost is not None:
+        if str(record.get("cost_type") or "") == "points" and cost is not None:
+            total_points += cost
+        elif str(record.get("cost_type") or "") == "coins" and cost is not None:
             total_coins += cost
         elif str(record.get("cost_type") or "") == "money" and cost is not None:
             site = _usage_record_site(record, account_by_id)
@@ -8163,11 +8189,15 @@ def public_dashboard(
 
     keys = manager.public_keys()
     selected_balance_keys = _select_balance_keys(keys)
+    point_balance = 0.0
     coin_balance = 0.0
     money_balances: dict[str, dict[str, Any]] = {}
     balances: list[dict[str, Any]] = []
     latest_balance_checked_at = 0
     for key in selected_balance_keys:
+        points = _decimal_value(key.get("points"))
+        if points is not None:
+            point_balance += points
         coins = _decimal_value(key.get("coins"))
         if coins is not None:
             coin_balance += coins
@@ -8188,6 +8218,7 @@ def public_dashboard(
             "name": str(key.get("name") or "未命名 API Key"),
             "site": site,
             "status": str(key.get("status") or "unchecked"),
+            "points": str(key.get("points") or ""),
             "coins": str(key.get("coins") or ""),
             "balance": str(key.get("balance") or ""),
             "symbol": symbol,
@@ -8224,6 +8255,7 @@ def public_dashboard(
             "description": "首次启用时由现有任务初始化；后续删除任务不会删除统计记录。",
         },
         "summary": {
+            "points_spent": _format_metric(total_points, 4),
             "coins_spent": _format_metric(total_coins, 4),
             "money_spent": [
                 {
@@ -8245,6 +8277,7 @@ def public_dashboard(
             "outputs": output_count,
         },
         "balances": {
+            "points": _format_metric(point_balance, 4),
             "coins": _format_metric(coin_balance, 4),
             "account_count": len(selected_balance_keys),
             "key_count": len(keys),
