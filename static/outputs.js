@@ -753,7 +753,8 @@
     selectArtifactCard(item, false);
     stopPreviewMedia();
     $("outputPreviewTitle").textContent = item.name || "产物预览";
-    $("outputPreviewMeta").innerHTML = '<span>' + esc(typeLabel(item.display_type)) + '</span><span>任务：' + esc(item.task_name || item.task_id || "当前任务") + '</span><span>' + esc(formatTime(item.modified_at || item.task_completed_at || item.task_created_at)) + '</span>' + (item.kind === "file" ? '<span>' + esc(formatSize(item.size)) + '</span>' : '');
+    var generationDuration = formatGenerationDuration(item && item.task_generation_ms);
+    $("outputPreviewMeta").innerHTML = '<span>' + esc(typeLabel(item.display_type)) + '</span><span>任务：' + esc(item.task_name || item.task_id || "当前任务") + '</span><span>' + esc(formatTime(item.modified_at || item.task_completed_at || item.task_created_at)) + '</span>' + (generationDuration ? '<span>生成耗时：' + esc(generationDuration) + '</span>' : '') + (item.kind === "file" ? '<span>' + esc(formatSize(item.size)) + '</span>' : '');
     $("outputPreviewContent").innerHTML = previewMediaMarkup(item);
     loadTextOutputPreviews($("outputPreviewContent"));
     window.RHMotion.bindVideoLoopControls($("outputPreviewContent"));
@@ -807,6 +808,24 @@
   function artifactDurationMarkup(item) {
     if (!item || item.display_type !== "video") return "";
     return '<span class="artifact-duration" title="视频时长">读取中…</span>';
+  }
+  function formatGenerationDuration(value) {
+    if (value == null || value === "") return "";
+    var elapsed = Number(value);
+    if (!Number.isFinite(elapsed) || elapsed < 0) return "";
+    var totalSeconds = Math.max(0, Math.round(elapsed / 1000));
+    if (totalSeconds < 60) return totalSeconds + " 秒";
+    var minutes = Math.floor(totalSeconds / 60);
+    var seconds = totalSeconds % 60;
+    if (minutes < 60) return minutes + " 分" + (seconds ? " " + seconds + " 秒" : "");
+    var hours = Math.floor(minutes / 60);
+    minutes %= 60;
+    return hours + " 小时" + (minutes ? " " + minutes + " 分" : "");
+  }
+  function artifactGenerationDurationMarkup(item) {
+    var durationLabel = formatGenerationDuration(item && item.task_generation_ms);
+    if (!durationLabel) return "";
+    return '<span class="artifact-generation-duration" title="生成耗时 ' + esc(durationLabel) + '" aria-label="生成耗时 ' + esc(durationLabel) + '">生成耗时 ' + esc(durationLabel) + '</span>';
   }
   function updateArtifactResolution(card, item, media) {
     var resolutionNode = card && card.querySelector(".artifact-resolution");
@@ -2214,7 +2233,7 @@
     return '<article class="artifact-card' + (canCompare ? ' is-compare-draggable' : '') + (canProject ? ' is-project-draggable' : '') + '" data-task-id="' + esc(item.task_id) + '" data-artifact-id="' + esc(item.id) + '" data-compare-draggable="' + (canCompare ? 'true' : 'false') + '" data-project-draggable="' + (canProject ? 'true' : 'false') + '" draggable="' + (canDrag ? 'true' : 'false') + '" tabindex="0" role="button" aria-roledescription="' + dragDescription + '" aria-label="放大查看 ' + esc(displayName) + '" style="animation-delay:' + Math.min(index * 35, 350) + 'ms">' +
       artifactCardHeadMarkup(item) +
       mediaMarkup(item) +
-      '<div class="artifact-body"><div class="artifact-name-row"><div class="artifact-name" title="' + esc(displayName) + '">' + esc(displayName) + '</div>' + ratingStarsMarkup(item) + '</div><div class="artifact-task" title="点击工作流名称加载到任务提交页"><span class="artifact-task-prefix">任务 ·</span>' + taskWorkflowLabel(item) + taskIdLabel(item) + '</div><div class="artifact-foot"><div class="artifact-foot-info"><span>' + formatTime(item.modified_at || item.task_completed_at || item.task_created_at) + '</span>' + artifactResolutionMarkup(item) + artifactDurationMarkup(item) + '</div>' + (cost ? '<span class="artifact-cost" title="' + esc(costTitle(item)) + '">' + esc(cost) + '</span>' : '') + '</div></div>' +
+      '<div class="artifact-body"><div class="artifact-name-row"><div class="artifact-name" title="' + esc(displayName) + '">' + esc(displayName) + '</div>' + ratingStarsMarkup(item) + '</div><div class="artifact-task" title="点击工作流名称加载到任务提交页"><span class="artifact-task-prefix">任务 ·</span>' + taskWorkflowLabel(item) + taskIdLabel(item) + '</div><div class="artifact-foot"><div class="artifact-foot-info"><span>' + formatTime(item.modified_at || item.task_completed_at || item.task_created_at) + '</span>' + artifactResolutionMarkup(item) + artifactDurationMarkup(item) + artifactGenerationDurationMarkup(item) + '</div>' + (cost ? '<span class="artifact-cost" title="' + esc(costTitle(item)) + '">' + esc(cost) + '</span>' : '') + '</div></div>' +
       '</article>';
   }
   function outputsEmptyMarkup() {

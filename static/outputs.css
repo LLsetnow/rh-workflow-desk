@@ -186,9 +186,11 @@
 .rating-stars-5 { color: var(--rating-yellow); }
 .rating-value { color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; white-space: nowrap; }
 .artifact-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; color: var(--subtle); font-size: 9px; }
-.artifact-foot-info { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.artifact-foot-info { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.artifact-foot-info > span:first-child { white-space: nowrap; }
 .artifact-resolution, .artifact-duration { color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; font-size: 9px; white-space: nowrap; }
-.artifact-cost { color: var(--warm); }
+.artifact-generation-duration { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.artifact-cost { flex: 0 0 auto; color: var(--warm); white-space: nowrap; }
 .outputs-empty { grid-column: 1 / -1; }
 .output-preview-dialog { width: min(1080px, 100%); max-height: min(900px, calc(100vh - 40px)); }
 .output-preview-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 17px; color: var(--muted); font-size: 10px; }

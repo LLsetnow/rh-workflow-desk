@@ -153,6 +153,11 @@ def test_output_media_cards_show_native_resolution_beside_time():
     assert 'class="artifact-duration"' in script
     assert "media.duration" in script
     assert ".artifact-duration" in styles
+    assert "function formatGenerationDuration(value)" in script
+    assert "function artifactGenerationDurationMarkup(item)" in script
+    assert 'class="artifact-generation-duration"' in script
+    assert ".artifact-generation-duration" in styles
+    assert "生成耗时：" in script
 
 
 def test_video_players_expose_a_loop_toggle():

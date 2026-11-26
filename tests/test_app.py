@@ -4047,6 +4047,130 @@ def test_public_outputs_exposes_toolbox_replay_metadata(tmp_path, monkeypatch):
         store._db.close()
 
 
+def test_public_outputs_computes_task_generation_ms_by_task_source(tmp_path, monkeypatch):
+    _configure_web_paths(tmp_path, monkeypatch)
+    store = web_app.LocalStore()
+    try:
+        output_dir = tmp_path / "out"
+        cases = [
+            {
+                "id": "task_rh_workflow",
+                "task_type": "workflow",
+                "created_at": 1_000_000,
+                "started_at": 1_005_000,
+                "completed_at": 1_011_500,
+                "progress": "已完成 · 保存 1 个产物（重启后恢复）",
+                "duration": "694",
+                "outputs": [
+                    {"kind": "file", "name": "rh.mp4", "mime": "video/mp4"},
+                    {"kind": "text", "node_id": "2", "text": "summary"},
+                ],
+                "expected_ms": 694_000,
+            },
+            {
+                "id": "task_toolbox_ms",
+                "task_type": "toolbox",
+                "created_at": 2_000_000,
+                "started_at": 2_000_000,
+                "completed_at": 2_164_920,
+                "progress": "已完成 · 1 个产物",
+                "duration": "164920",
+                "outputs": [{"kind": "file", "name": "tb.png", "mime": "image/png"}],
+                "expected_ms": 164_920,
+            },
+            {
+                "id": "task_comfyui_wall",
+                "task_type": "workflow",
+                "comfyui_url": "http://127.0.0.1:8189",
+                "created_at": 3_000_000,
+                "started_at": 3_010_000,
+                "completed_at": 3_037_496,
+                "progress": "已完成 · 保存 1 个产物",
+                "duration": None,
+                "outputs": [{"kind": "file", "name": "comfy.png", "mime": "image/png"}],
+                "expected_ms": 27_496,
+            },
+            {
+                "id": "task_local_import",
+                "task_type": "workflow",
+                "created_at": 4_000_000,
+                "started_at": None,
+                "completed_at": 4_000_000,
+                "progress": "已导入本地案例",
+                "duration": None,
+                "outputs": [{"kind": "file", "name": "imported.mp4", "mime": "video/mp4"}],
+                "expected_ms": None,
+            },
+            {
+                "id": "task_disk_recovered",
+                "task_type": "toolbox",
+                "created_at": 5_000_000,
+                "started_at": 5_000_000,
+                "completed_at": 9_000_000,
+                "progress": "已从本地产物恢复 · 保存 1 个产物",
+                "duration": None,
+                "outputs": [{"kind": "file", "name": "recovered.png", "mime": "image/png"}],
+                "expected_ms": None,
+            },
+        ]
+        tasks = []
+        for case in cases:
+            task_id = case["id"]
+            task_folder = output_dir / task_id
+            task_folder.mkdir(parents=True)
+            saved_outputs = []
+            for entry in case["outputs"]:
+                if entry["kind"] == "file":
+                    file_path = task_folder / entry["name"]
+                    file_path.write_bytes(b"data")
+                    saved_outputs.append(
+                        {
+                            "kind": "file",
+                            "path": str(file_path),
+                            "name": entry["name"],
+                            "mime": entry["mime"],
+                        }
+                    )
+                else:
+                    saved_outputs.append(entry)
+            store.create_task(
+                {
+                    "id": task_id,
+                    "created_at": case["created_at"],
+                    "workflow_path": str(tmp_path / f"{task_id}.json"),
+                    "workflow_name": task_id,
+                    "task_type": case["task_type"],
+                    "comfyui_url": case.get("comfyui_url", ""),
+                    "files": {},
+                    "prompts": {},
+                    "output_dir": str(output_dir),
+                }
+            )
+            store.update_task(
+                task_id,
+                status="completed",
+                started_at=case["started_at"],
+                completed_at=case["completed_at"],
+                progress=case["progress"],
+                duration=case["duration"],
+                outputs_json=json.dumps(saved_outputs, ensure_ascii=False),
+            )
+            tasks.append(store.task(task_id))
+
+        result = web_app.public_outputs(store, SimpleNamespace(public_tasks=lambda: tasks))
+        generation_ms_by_task = {}
+        for item in result["outputs"]:
+            generation_ms_by_task.setdefault(item["task_id"], []).append(item["task_generation_ms"])
+
+        assert generation_ms_by_task["task_rh_workflow"] == [694_000, 694_000]
+        assert generation_ms_by_task["task_toolbox_ms"] == [164_920]
+        assert generation_ms_by_task["task_comfyui_wall"] == [27_496]
+        assert generation_ms_by_task["task_local_import"] == [None]
+        assert generation_ms_by_task["task_disk_recovered"] == [None]
+    finally:
+        store._db.close()
+
+
 def test_usage_ledger_survives_task_deletion_and_dashboard_reads_it(tmp_path, monkeypatch):
     _configure_web_paths(tmp_path, monkeypatch)
     store = web_app.LocalStore()

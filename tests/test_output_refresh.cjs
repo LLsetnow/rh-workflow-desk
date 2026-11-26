@@ -57,7 +57,12 @@ function setup(count, page = 1) {
     confirm() { return true; },
     innerHeight: 900,
     getComputedStyle() { return { gridTemplateColumns: "200px 200px" }; },
-    RHMotion: { bindVideoLoopControls() {}, closeModal() {}, showToast() {} },
+    RHMotion: {
+      bindVideoLoopControls() {},
+      closeModal() {},
+      showToast() {},
+      videoPlayerMarkup(url) { return '<video src="' + url + '"></video>'; },
+    },
   } });
   const source = fs.readFileSync(path.join(__dirname, "../static/outputs.js"), "utf8");
   const startup = "  if (!outputUrlHasContext()) restoreOutputViewState();\n  readOutputContext();\n  outputStatePersistenceReady = true;\n  bindEvents();\n  loadOutputs(false);";
@@ -99,6 +104,33 @@ test("artifact card title prefers the artifact stem and falls back to the workfl
   }, 0);
   assert.match(markup, /aria-label="放大查看 workflow_api"/);
   assert.match(markup, /class="artifact-name" title="workflow_api">workflow_api<\/div>/);
+});
+
+test("artifact footer places generation duration after video duration and before cost", () => {
+  const { api } = setup(0);
+  const markup = api.artifactCardMarkup({
+    id: "task-1:file:0",
+    task_id: "task-1",
+    kind: "file",
+    file_index: 0,
+    display_type: "video",
+    name: "output_1.mp4",
+    task_name: "demo.json",
+    task_completed_at: 1790882862384,
+    task_generation_ms: 694000,
+    cost_type: "coins",
+    cost: "139",
+  }, 0);
+
+  const resolutionIndex = markup.indexOf("artifact-resolution");
+  const videoDurationIndex = markup.indexOf("artifact-duration");
+  const generationIndex = markup.indexOf("artifact-generation-duration");
+  const costIndex = markup.indexOf("artifact-cost");
+  assert.ok(resolutionIndex > 0);
+  assert.ok(videoDurationIndex > resolutionIndex);
+  assert.ok(generationIndex > videoDurationIndex);
+  assert.ok(costIndex > generationIndex);
+  assert.match(markup, />生成耗时 11 分 34 秒</);
 });
 
 test("tag exclusion removes only the selected card, fills the page and preserves media and focus", () => {

@@ -36,7 +36,8 @@ function loadOutputs() {
     updateFilterSlider = function () {};
     this.api = { state, caseMediaOutputs, oneStarOutputs, scopedOutputSummary, renderSummary,
       exportCaseOutputs, deleteOneStarOutputs, restoreOutputViewState, saveOutputViewState,
-      outputViewStateKey, readOutputContext, formatVideoDuration, artifactDurationMarkup, filteredOutputs };
+      outputViewStateKey, readOutputContext, formatVideoDuration, artifactDurationMarkup,
+      formatGenerationDuration, artifactGenerationDurationMarkup, filteredOutputs };
   `.replace("this.api", "globalThis.api")), context);
   context.api.state.outputs = [
     { id: "a", project_id: "项目 A", kind: "file", display_type: "video", rating: 1, tags: ["案例"] },
@@ -90,6 +91,26 @@ test("video duration is formatted beside video resolution only", () => {
   assert.equal(api.formatVideoDuration("invalid"), "");
   assert.match(api.artifactDurationMarkup({ display_type: "video" }), /artifact-duration/);
   assert.equal(api.artifactDurationMarkup({ display_type: "image" }), "");
+});
+
+test("task generation duration is formatted and omitted when unavailable", () => {
+  const { api } = loadOutputs();
+  assert.equal(api.formatGenerationDuration(0), "0 秒");
+  assert.equal(api.formatGenerationDuration(27496), "27 秒");
+  assert.equal(api.formatGenerationDuration(60000), "1 分");
+  assert.equal(api.formatGenerationDuration(694000), "11 分 34 秒");
+  assert.equal(api.formatGenerationDuration(3600000), "1 小时");
+  assert.equal(api.formatGenerationDuration(3661000), "1 小时 1 分");
+  assert.equal(api.formatGenerationDuration(null), "");
+  assert.equal(api.formatGenerationDuration(undefined), "");
+  assert.equal(api.formatGenerationDuration(""), "");
+  assert.equal(api.formatGenerationDuration(-5), "");
+  assert.equal(api.formatGenerationDuration("invalid"), "");
+  const markup = api.artifactGenerationDurationMarkup({ task_generation_ms: 694000 });
+  assert.match(markup, /class="artifact-generation-duration"/);
+  assert.match(markup, /title="生成耗时 11 分 34 秒"/);
+  assert.match(markup, />生成耗时 11 分 34 秒</);
+  assert.equal(api.artifactGenerationDurationMarkup({ task_generation_ms: null }), "");
 });
 
 test("explicit dashboard context overrides saved output view state without overwriting it", () => {

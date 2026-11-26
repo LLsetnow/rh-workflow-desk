@@ -244,6 +244,33 @@ def task_elapsed_ms(task: dict[str, Any], current_time: int | None = None) -> in
     return max(0, end_at - created_at)
 
 
+def task_generation_ms(task: dict[str, Any]) -> int | None:
+    """Return measurable task generation duration in milliseconds.
+
+    Toolbox tasks persist millisecond wall time in ``duration``, whereas
+    RunningHub workflow tasks persist ``taskCostTime`` in seconds. ComfyUI
+    tasks leave ``duration`` unset and fall back to ``started_at`` through
+    ``completed_at``. Imported local cases and recovered tasks without a
+    recorded duration return ``None`` instead of misleading synthetic times.
+    """
+    task_type = str(task.get("task_type") or "workflow").strip().lower()
+    raw_duration = _decimal_value(task.get("duration"))
+    if task_type == "toolbox":
+        if raw_duration is not None and raw_duration >= 0:
+            return round(raw_duration)
+    elif raw_duration is not None and raw_duration > 0:
+        return round(raw_duration * 1000)
+
+    progress = str(task.get("progress") or "").strip()
+    if progress == "已导入本地案例" or progress.startswith("已从本地产物恢复") or "重启后恢复" in progress:
+        return None
+    started_at = int(task.get("started_at") or 0)
+    completed_at = int(task.get("completed_at") or 0)
+    if started_at > 0 and completed_at >= started_at:
+        return completed_at - started_at
+    return None
+
+
 def default_local_output_dir() -> Path:
     return OUTPUT_ROOT
 
@@ -8538,6 +8565,7 @@ def public_outputs(
         project_path = str(task.get("project_path") or "").strip()
         feature = output_feature_key(task)
         feature_tag = output_feature_label(feature)
+        task_generation = task_generation_ms(task)
         for output_index, output in enumerate(task.get("outputs") or []):
             if not isinstance(output, dict):
                 continue
@@ -8583,6 +8611,7 @@ def public_outputs(
                         "task_status": str(task.get("status") or ""),
                         "task_created_at": int(task.get("created_at") or 0),
                         "task_completed_at": int(task.get("completed_at") or 0),
+                        "task_generation_ms": task_generation,
                         "cost_type": str(task.get("cost_type") or ""),
                         "cost": str(task.get("cost") or ""),
                     }
@@ -8648,6 +8677,7 @@ def public_outputs(
                     "task_status": str(task.get("status") or ""),
                     "task_created_at": int(task.get("created_at") or 0),
                     "task_completed_at": int(task.get("completed_at") or 0),
+                    "task_generation_ms": task_generation,
                     "cost_type": str(task.get("cost_type") or ""),
                     "cost": str(task.get("cost") or ""),
                     "file_index": current_index,
