@@ -137,13 +137,15 @@
   function renderSummary(data) {
     var summary = data.summary || {};
     var accountLabel = data.account_filter_name || "全部账号";
+    var pointsSpent = $("dashboardPointsSpent");
     var coinsSpent = $("dashboardCoinsSpent");
     var moneySpent = $("dashboardMoneySpent");
+    pointsSpent.textContent = formatNumber(summary.points_spent, 4);
     coinsSpent.textContent = formatNumber(summary.coins_spent, 4);
     coinsSpent.title = coinsCostTitle(summary.coins_spent);
     moneySpent.textContent = formatMoneySpent(summary.money_spent);
     moneySpent.title = moneySummaryTitle(summary.money_spent);
-    $("dashboardCoinsMeta").textContent = accountLabel + " · 所选时间范围 · RH 币";
+    $("dashboardCoinsMeta").textContent = accountLabel + " · 所选时间范围";
     $("dashboardSubmissions").textContent = String(summary.submissions || 0);
     $("dashboardSubmissionsMeta").textContent = accountLabel + " · 包含成功、失败和取消的提交";
     $("dashboardProcessing").textContent = formatDuration(summary.processing_seconds);
@@ -161,18 +163,21 @@
   function renderBalances(data) {
     var balances = data.balances || {};
     var keys = Array.isArray(balances.keys) ? balances.keys : [];
+    var pointBalance = $("dashboardPointsBalance");
     var coinBalance = $("dashboardCoinBalance");
+    pointBalance.textContent = balances.points == null || balances.points === "" ? "—" : formatNumber(balances.points, 4);
     coinBalance.textContent = balances.coins == null || balances.coins === "" ? "—" : formatNumber(balances.coins, 4);
     coinBalance.title = coinsCostTitle(balances.coins);
     var accountCount = Number(balances.account_count || keys.length);
     var keyCount = Number(balances.key_count || keys.length);
     $("dashboardBalanceKeyCount").textContent = accountCount + " 个账号 · " + keyCount + " Key 去重";
     $("dashboardAccountBalances").innerHTML = keys.length ? keys.map(function (item) {
+      var points = item.points == null || item.points === "" ? "—" : formatNumber(item.points, 4);
       var coins = item.coins == null || item.coins === "" ? "—" : formatNumber(item.coins, 4);
       var balance = item.balance == null || item.balance === "" ? "—" : String(item.symbol || "") + formatNumber(item.balance, 4);
       var coinTitle = coinsCostTitle(item.coins);
       var balanceTitle = moneyCostTitle({ cost_type: "money", cost: item.balance, key_site: item.site });
-      return '<div class="dashboard-account-balance" title="余额取自 ' + esc(item.key_name || item.name || "该账号") + '"><div class="dashboard-account-balance-meta"><strong>' + esc(item.account_name || "未绑定账号") + '</strong><span>' + esc(siteLabel(item.site)) + '</span></div><div class="dashboard-account-balance-values"><span class="dashboard-account-balance-value"><strong title="' + esc(coinTitle) + '">' + esc(coins) + '</strong><small>RH 币</small></span><span class="dashboard-account-balance-value"><strong title="' + esc(balanceTitle) + '">' + esc(balance) + '</strong><small>余额</small></span></div></div>';
+      return '<div class="dashboard-account-balance" title="余额取自 ' + esc(item.key_name || item.name || "该账号") + '"><div class="dashboard-account-balance-meta"><strong>' + esc(item.account_name || "未绑定账号") + '</strong><span>' + esc(siteLabel(item.site)) + '</span></div><div class="dashboard-account-balance-values"><span class="dashboard-account-balance-value"><strong>' + esc(points) + '</strong><small>积分</small></span><span class="dashboard-account-balance-value"><strong title="' + esc(coinTitle) + '">' + esc(coins) + '</strong><small>RH 币</small></span><span class="dashboard-account-balance-value"><strong title="' + esc(balanceTitle) + '">' + esc(balance) + '</strong><small>余额</small></span></div></div>';
     }).join("") : '<div class="dashboard-account-balance-empty">暂无可用账号余额</div>';
     var checkedAt = numeric(balances.latest_checked_at);
     $("dashboardBalanceNote").textContent = checkedAt ? "最近查询：" + formatTimestamp(checkedAt) : "余额尚未成功查询，请到设置中刷新 API Key。";
@@ -243,11 +248,15 @@
   }
 
   function recentCost(record) {
-    var cost = String(record.cost || "").trim();
+    var cost = String(record.cost == null ? "" : record.cost).trim();
     if (!cost) return "费用未返回";
+    if (record.cost_type === "points") return formatNumber(cost, 4) + " 积分";
     if (record.cost_type === "coins") return formatNumber(cost, 4) + " RH 币";
-    var symbol = window.RHCost ? window.RHCost.moneySymbol(record) : (record.site === "cn" ? "¥" : "$");
-    return symbol + formatNumber(cost, 4);
+    if (record.cost_type === "money") {
+      var symbol = window.RHCost ? window.RHCost.moneySymbol(record) : (record.site === "cn" ? "¥" : "$");
+      return symbol + formatNumber(cost, 4);
+    }
+    return "费用类型未知";
   }
 
   function renderRecent(data) {

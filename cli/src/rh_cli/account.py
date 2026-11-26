@@ -28,7 +28,8 @@ def check_account(api_key_arg: str | None = None, key_name: str | None = None) -
                     data = response.get("data", {})
                     results.append({
                         "site": site,
-                        "remainCoins": str(data.get("remainCoins", "0")),
+                        "remainCoins": str(data.get("remainCoins") if data.get("remainCoins") is not None else "0"),
+                        "remainPoint": str(data.get("remainPoint")) if data.get("remainPoint") is not None else None,
                         "remainMoney": str(data.get("remainMoney", "0")) if data.get("remainMoney") is not None else "0",
                         "currency": str(data.get("currency", "")) if data.get("currency") else "",
                         "apiType": str(data.get("apiType", "")),
@@ -47,6 +48,7 @@ def check_account(api_key_arg: str | None = None, key_name: str | None = None) -
 
     # 汇总余额
     total_money = 0.0
+    total_points = 0.0
     total_coins = 0
     for r in results:
         try:
@@ -57,14 +59,20 @@ def check_account(api_key_arg: str | None = None, key_name: str | None = None) -
             total_coins += int(r["remainCoins"])
         except (ValueError, TypeError):
             pass
+        try:
+            if r.get("remainPoint") is not None:
+                total_points += float(r["remainPoint"])
+        except (ValueError, TypeError):
+            pass
 
-    status = "ready" if total_money > 0 or total_coins > 0 else "no_balance"
+    status = "ready" if total_money > 0 or total_points > 0 or total_coins > 0 else "no_balance"
     return {
         "status": status,
         "key_prefix": key_prefix,
         "key_source": resolved.source,
         "sites": results,
         "balance_money": str(total_money),
+        "balance_points": str(total_points),
         "balance_coins": str(total_coins),
         "running_tasks": results[0].get("currentTaskCounts", "0") if results else "0",
     }

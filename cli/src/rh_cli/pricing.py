@@ -1,13 +1,7 @@
-"""RunningHub 计费费率与任务花费估算。
+"""旧版 RH 币费率的本地参考估算。
 
-数据来源：RunningHub 官方 API 文档 / 企业级共享 API 页面（截至 2026-08）。
-- 消费级 / 共享机：按 GPU **实际运行秒数**扣 RH币，仅任务执行时扣费，编辑配置免费；
-  通过 API 跑一个工作流的价格与网页端跑同一工作流完全一致。
-- 企业级专享机：同样按秒结算，官方以「每小时 ¥」报价（口径不同于消费级 RH币，不做换算）。
-
-费率可能随官方调整，最终以官网为准。想看账户实际余额用 `rh check`；
-任务实际花费以 API 返回的 consumeCoins / 账单为准，本模块的估算仅供参考。
-"""
+RunningHub 已开始使用积分计费，这些历史费率不代表积分版 API 的官方费率。
+实际任务消耗以 API 返回值或 RunningHub 账单为准。"""
 
 from __future__ import annotations
 
@@ -84,7 +78,7 @@ def pricing_dict(seconds: float | None = None) -> dict[str, Any]:
         tiers.append(entry)
     return {
         "unit": "RH币 (coins)",
-        "billing": "按 GPU 实际运行秒数计费，仅任务执行时扣费",
+        "billing": "旧版 RH 币费率参考，不代表当前积分版 API 的实际费率",
         "seconds": seconds,
         "tiers": tiers,
         "enterprise_hourly_yuan": [{"tier": name, "yuan_per_hour": y} for name, y in ENTERPRISE_HOURLY_YUAN],
@@ -96,7 +90,7 @@ def render_pricing(console: "Console", seconds: float | None = None) -> None:
     """以表格形式打印费率；给了 seconds 则附上各档位预估花费。"""
     from rich.table import Table
 
-    title = "RunningHub 计费费率（RH币）"
+    title = "RunningHub 旧版 RH 币费率参考（不代表积分账单）"
     if seconds is not None:
         title += f" · 按 {seconds:g}s 预估"
     table = Table(title=title, show_header=True, header_style="bold cyan")
@@ -124,7 +118,6 @@ def render_pricing(console: "Console", seconds: float | None = None) -> None:
     console.print(table)
 
     hourly = "，".join(f"{name} ¥{y:g}" for name, y in ENTERPRISE_HOURLY_YUAN)
-    console.print("[dim]· 按 GPU 实际运行秒数计费，仅任务执行时扣费；编辑 / 配置免费。[/dim]")
-    console.print("[dim]· 消费级 API 价格与网页端跑同一工作流一致。[/dim]")
+    console.print("[dim]· 以下为旧版 RH 币费率参考，不代表积分版 API 的实际费率。[/dim]")
     console.print(f"[dim]· 企业级专享机（按秒结算，仅参考）：{hourly} / 小时。[/dim]")
-    console.print(f"[dim]· 费率以官方为准：{PRICING_SOURCE}[/dim]")
+    console.print(f"[dim]· 实际消耗以 API 返回值或 RunningHub 账单为准；旧费率来源：{PRICING_SOURCE}[/dim]")

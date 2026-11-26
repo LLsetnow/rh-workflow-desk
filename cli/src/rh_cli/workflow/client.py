@@ -416,15 +416,24 @@ def _poll_outputs(
 
 
 def _extract_task_cost(outputs: list[dict[str, Any]]) -> tuple[str | None, str | None, str | None]:
-    """从首个工作流输出中提取单项费用，优先 RH 币、金额兜底。"""
+    """从首个工作流输出中提取积分、历史 RH 币或金额消耗。"""
     if not outputs:
         return (None, None, None)
-    usage = outputs[0] if isinstance(outputs[0], dict) else {}
-    duration = usage.get("taskCostTime")
-    for field, cost_type in (("consumeCoins", "coins"), ("consumeMoney", "money")):
-        value = usage.get(field)
-        if value is not None and str(value).strip():
-            return (cost_type, str(value), duration)
+    first = outputs[0] if isinstance(outputs[0], dict) else {}
+    usage = first.get("usage") if isinstance(first.get("usage"), dict) else {}
+    duration = first.get("taskCostTime")
+    if duration is None:
+        duration = usage.get("taskCostTime")
+    for field, cost_type in (
+        ("consumePoint", "points"),
+        ("consumePoints", "points"),
+        ("consumeCoins", "coins"),
+        ("consumeMoney", "money"),
+    ):
+        for source in (usage, first):
+            value = source.get(field)
+            if value is not None and str(value).strip():
+                return (cost_type, str(value), duration)
     return (None, None, duration)
 
 

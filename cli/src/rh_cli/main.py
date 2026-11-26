@@ -85,10 +85,17 @@ def check(ctx: typer.Context) -> None:
         sites = result.get("sites", [])
         parts = [f"\nRunningHub 已就绪，Key 来源：{result.get('key_source')}"]
         for s in sites:
+            parts_line = f"  {s['site']}.runninghub:"
+            if s.get("remainPoint") is not None:
+                parts_line += f" {s['remainPoint']} 积分"
             coin = s.get("remainCoins", "0")
+            if coin not in (None, "", "0", "0.0", 0) or s.get("remainPoint") is None:
+                parts_line += f" {coin} RH币"
             money = s.get("remainMoney", "0")
             cur = s.get("currency", "")
-            parts.append(f"  {s['site']}.runninghub: {coin} RH币" + (f" + ${money} {cur}" if money != "0" else ""))
+            if money not in ("", "0", "0.0", 0):
+                parts_line += f" + {money} {cur}"
+            parts.append(parts_line)
         state.out.print("[green]" + "\n".join(parts) + "[/green]")
     elif status == "no_balance":
         state.out.print(f"[yellow]API Key 可用，但余额为 0。[/yellow]请充值后再运行生成任务。")
@@ -102,10 +109,10 @@ def check(ctx: typer.Context) -> None:
 def pricing(
     ctx: typer.Context,
     seconds: float | None = typer.Option(
-        None, "--seconds", "-s", help="按任务耗时（秒）预估各机型花费，例：-s 120。"
+        None, "--seconds", "-s", help="按旧版 RH 币参考费率估算各机型花费，例：-s 120。"
     ),
 ) -> None:
-    """查看 RunningHub 计费费率（RH币/秒），并可按耗时预估任务花费。"""
+    """查看旧版 RH 币参考费率；不代表当前积分账单的实际消耗。"""
     from rh_cli.pricing import pricing_dict, render_pricing
 
     state = ctx.obj if isinstance(ctx.obj, CliState) else CliState(console=console)

@@ -67,12 +67,13 @@
 .dashboard-coin-balance { display: flex; align-items: baseline; gap: 9px; margin-top: 27px; padding-bottom: 17px; }
 .dashboard-coin-balance strong { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: 30px; font-weight: 650; letter-spacing: -.07em; }
 .dashboard-coin-balance span { color: var(--muted); font-size: 11px; }
+.dashboard-coin-balance + .dashboard-coin-balance { margin-top: 0; }
 .dashboard-account-balances { display: grid; gap: 8px; margin-top: 1px; }
 .dashboard-account-balance { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 0; }
 .dashboard-account-balance-meta { display: grid; min-width: 0; gap: 4px; }
 .dashboard-account-balance-meta strong { overflow: hidden; color: var(--ink); font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-account-balance-meta span { overflow: hidden; color: var(--subtle); font-family: "SFMono-Regular", Consolas, monospace; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.dashboard-account-balance-values { display: flex; align-items: baseline; gap: 13px; }
+.dashboard-account-balance-values { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px 13px; justify-content: flex-end; }
 .dashboard-account-balance-value { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
 .dashboard-account-balance-value strong { color: var(--ink); font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; font-weight: 600; }
 .dashboard-account-balance-value:first-child strong { color: var(--accent); }
